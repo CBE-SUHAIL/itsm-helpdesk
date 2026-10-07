@@ -2,7 +2,8 @@
 
 Updated: 8 October 2026
 Checklist task: F02 closeout, then F03 and F04
-Branch: `docs/F02-closeout` (off `main`)
+Branch: `docs/F02-closeout` (off `main`), pushed to origin
+Pull request: [#2](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/2) into `main` — open, awaiting Suhail's review
 Active owner: Kavin
 Outgoing owner: Suhail (authored the F02 documentation)
 
@@ -44,8 +45,9 @@ merge; `main` is the only branch.
   `docs/` resolve, and the requirements and contract agree with each other on
   all four decisions, including the new `PATCH /notifications/{id}/dismiss`
   route and the audit write rules.
-- This branch is **not pushed yet**. Until it is, F02 is not handed over and the
-  other person must not code from it.
+- Pushed as `origin/docs/F02-closeout`, commit `bbf8c78`; pull request #2 is
+  open with Suhail requested as reviewer. F02 is now handed over for review, so
+  Suhail may read and comment but should not code from this branch.
 - The reference checklist workbook and its extract stay local, outside Git, and
   must never be pushed.
 
@@ -60,11 +62,12 @@ merge; `main` is the only branch.
 
 ## Exact next action
 
-Push `docs/F02-closeout`, open a pull request into `main`, and ask Suhail to
-review the four decisions and the workbook update. After that merge, start F03
-and F04 together on one branch, `feat/F03-F04-scaffold`: React and FastAPI
-starter apps that run from documented commands, and a local PostgreSQL setup
-with a committed sample environment file and no secrets. Both are due
+Suhail reviews pull request #2: the four decisions and the workbook update. He
+should object in review if he disagrees, and agreed edits go on this branch in
+the same round so `main` matches the contract when it merges. After that merge,
+start F03 and F04 together on one branch, `feat/F03-F04-scaffold`: React and
+FastAPI starter apps that run from documented commands, and a local PostgreSQL
+setup with a committed sample environment file and no secrets. Both are due
 9 October 2026 12:00, so F03/F04 is the next work, not F05.
 
 F05 (schema and migrations) follows on 12 October, and needs the F03/F04
