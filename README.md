@@ -5,9 +5,10 @@ ITSM architecture workbook: a React web app, FastAPI services, SQLAlchemy, and
 PostgreSQL, all running locally.
 
 The implementation checklist and mentor update log are maintained separately.
-See [Team workflow](docs/WORKFLOW.md) for how we collaborate on this repository.
+Start with the [current handoff](docs/HANDOFF.md), [team workflow](docs/WORKFLOW.md),
+[requirements](docs/REQUIREMENTS.md), and [API contract](docs/API_CONTRACT.md).
 
 ## Current status
 
-Repository initialized. Application code has not been added yet.
-
+Repository initialized. F02 requirements and API contract are being reviewed.
+Application code has not been added yet.
