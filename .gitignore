@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.coverage
+
+# JavaScript
+node_modules/
+dist/
+build/
+coverage/
+
+# Local configuration and files
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+uploads/
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
