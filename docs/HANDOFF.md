@@ -80,33 +80,32 @@ All against the running container, in this order.
 
 ## Open items carried forward
 
+Suhail has Docker. That closes the question carried since the F03/F04 handoff:
+no native-install appendix is needed and the README stays on the containerised
+path. The list is now four items, renumbered.
+
 1. `docs/DATA_MODEL.md` assigns the tables to D01-D06. D01 is confirmed by the
    F03/F04 handoff; the D02-D06 grouping is a working plan, because the checklist
    workbook is local-only and not in Git. Confirm it and correct the table in the
    same commit as the first migration that disagrees.
-2. **Suhail's Docker situation is still unknown**, carried from the F03/F04
-   handoff and still unanswered. If he cannot run Docker, the README needs a
-   short native-install appendix, and its content depends on his operating
-   system, so it was not guessed.
-3. On Windows with Docker Engine inside WSL2, the WSL virtual machine shuts down
+2. On Windows with Docker Engine inside WSL2, the WSL virtual machine shuts down
    roughly a minute after the last WSL command, which stops Docker and the
    database with it. Keep a WSL session open while working — on this side that
    means holding one open in a background terminal — or run
    `docker compose up -d` again before starting the backend or running a
    migration. Documented in the README troubleshooting section.
-4. The checklist workbook still shows F01 and F02 as "In progress". It is a
+3. The checklist workbook still shows F01 and F02 as "In progress". It is a
    local-only file outside Git and still needs F01 and F02 marked Done with pull
    requests #1 and #2 as evidence, F01 noted as proven in one direction only, and
    F03 and F04 marked Done with pull request #3 once it merges.
-5. No tables exist yet, by design. `refresh_tokens` is the only table outside
+4. No tables exist yet, by design. `refresh_tokens` is the only table outside
    D01-D06, and it belongs to A01/A02.
 
 ## Exact next action
 
 Suhail reviews the F05 pull request. He should run the README verification table
 on his own machine — including `cd backend && alembic current`, which now has its
-own row — and answer the Docker question left open from the previous handoff
-(open item 2) in the same round.
+own row. Docker is confirmed available, so nothing in the setup needs a fallback.
 
 Reviewers should push back on one decision in particular if they disagree:
 `docs/DATA_MODEL.md` stores enumerated values as text plus a check constraint
