@@ -2,19 +2,20 @@
 
 Updated: 8 October 2026
 Checklist tasks: F03 and F04
-Branch: `feat/F03-F04-scaffold`, off `docs/F02-closeout` at `814b62a`
-Active owner: Kavin
+Branch: `feat/F03-F04-scaffold`, off `814b62a`
+Pull request: [#3](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/3) into `main`
+Active owner: Kavin until this is reviewed, then Suhail
 Incoming owner: Suhail (reviewer for F03/F04)
 
 ## Where the project actually stands
 
-F01 and F02 are done in substance: pull request #1 was merged into `main` as
-commit `4503712`, and pull request #2 carries the four F02 review decisions but
-is **still open and unmerged**. Those decisions are not on `main` yet, so this
-branch was cut from the closeout tip `814b62a` rather than from `main`. If pull
-request #2 is squash-merged, its commits get new hashes and this base goes
-stale; because this branch still has no commits at that point, the fix is to
-recreate it from the updated `main`.
+F01 and F02 are complete. Pull request #1 merged into `main` as `4503712`, and
+pull request #2 merged as `93a85c5`, so the four F02 review decisions are on
+`main` and are the working contract for everything below.
+
+This branch was cut from `814b62a`, which the merge of pull request #2 made an
+ancestor of `main`. The base is therefore current and no rebase is needed. The
+branch carries exactly one commit, the F03/F04 scaffold.
 
 ## Done in this handoff
 
@@ -53,8 +54,8 @@ application, where before it had only documentation:
 
 ## Open items carried forward
 
-1. Pull request #2 still needs Suhail's review. It is a documentation-only
-   change and it is the gate on `main` matching the contract.
+1. Pull request #3 needs Suhail's review. It is the only open change, and
+   `main` already matches the contract it was built against.
 2. **Suhail's Docker situation is unknown.** The README's golden path assumes
    Docker is available, either as Docker Desktop or as Docker Engine inside
    WSL2. If Suhail cannot run Docker, F04 needs a short native-install appendix,
@@ -67,13 +68,18 @@ application, where before it had only documentation:
    in the README troubleshooting section.
 4. The checklist workbook still shows F01 and F02 as "In progress". It is a
    local-only file outside Git and still needs F01 and F02 marked Done with pull
-   request #1 as evidence, and F01 noted as proven in one direction only.
+   requests #1 and #2 as evidence, F01 noted as proven in one direction only, and
+   F03 and F04 marked Done with pull request #3 once it merges.
 
 ## Exact next action
 
-Suhail reviews this pull request. He should follow the four verification steps in
+Suhail reviews pull request #3. He should follow the four verification steps in
 `README.md` on his own machine, then answer one question in review: does he have
 Docker available, as Docker Desktop or as Docker Engine inside WSL2? If he does
 not, a native-install appendix is added to the README in the same review round,
 matching his operating system. Any change agreed in review goes onto this branch
 before it merges, so `main` matches the documented setup.
+
+After that merge, two rows are unblocked and can run in parallel: F05 (database
+schema and migrations) on this side, and D01 (Users and Roles tables) on Suhail's
+side, which needs only the F04 database that is now running.
