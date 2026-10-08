@@ -3,8 +3,7 @@
 Updated: 9 October 2026
 Checklist task: F05 (database schema and migrations)
 Branch: `feat/F05-schema-migrations`, off `e80717f`
-Pull request: opened from this branch into `main`; the number is added in the
-follow-up commit, as was done for F02 and F03/F04
+Pull request: [#4](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/4) into `main`
 Active owner: Kavin (F05)
 Incoming owner: Suhail (reviewer for F05)
 
