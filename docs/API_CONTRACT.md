@@ -1,9 +1,14 @@
-# API contract (F02 working baseline)
+# API contract (F02 baseline, closed 8 October 2026)
 
 This is the shared agreement between the React app and FastAPI backend. It is
 not implemented yet. If the team changes a route or rule, update this file,
 the requirements, and affected tests in the same commit. FastAPI's generated
 OpenAPI page at `/docs` must match the implemented contract.
+
+Pull request #1 accepted this baseline and the four review decisions recorded in
+[REQUIREMENTS.md](REQUIREMENTS.md) under "F02 review decisions". Checklist row F06
+keeps the narrower job of confirming that every route below names its request
+fields, response fields, and error codes, and that both people agree on them.
 
 Base path: `/api/v1`. JSON is used except for multipart file upload and CSV/PDF
 downloads. IDs are UUID strings. Timestamps are ISO 8601 UTC strings ending in
@@ -54,6 +59,11 @@ registration endpoint. User deactivation preserves linked ticket history.
 | `POST /tickets/{id}/category` | Assigned agent or admin | `{category_id, reason}` → updated ticket |
 | `GET /tickets/{id}/history` | Ticket owner, agent, admin | Ordered immutable change history |
 
+`POST /tickets` accepts exactly `title`, `description`, and `category_id`. A
+`priority` field is rejected with 422 for every role, including agents and
+admins, so a new ticket always starts `Medium`; priority is set only through
+`POST /tickets/{id}/priority`, which requires a reason.
+
 `POST /tickets/{id}/assignment` with a null assignee is admin-only and moves
 Assigned/In Progress back to Open. It is rejected for Resolved/Closed tickets.
 `POST /tickets/{id}/status` permits only the transitions documented in
@@ -87,8 +97,9 @@ agent notes in v1. No comment, attachment, or article hard-delete route in v1.
 
 | Method and route | Who | Request → response |
 | --- | --- | --- |
-| `GET /notifications` | Logged-in user | Own notifications; optional `unread_only` filter |
-| `PATCH /notifications/{id}/read` | Notification owner | Mark read → updated notification |
+| `GET /notifications` | Logged-in user | Own notifications, newest first; excludes dismissed records unless `include_dismissed=true`; optional `unread_only` filter |
+| `PATCH /notifications/{id}/read` | Notification owner | Mark read → updated notification, still listed |
+| `PATCH /notifications/{id}/dismiss` | Notification owner | Dismiss → updated notification, removed from the default list |
 | `GET /dashboard/summary` | Logged-in user | Counts by status/priority, overdue counts, agent workload where allowed |
 | `GET /reports/tickets` | Agent or admin | Filters as in ticket list plus `format=csv` or `format=pdf` → downloadable report |
 | `GET /settings` | Admin | SLA targets, attachment limit, allowed types |
@@ -99,10 +110,39 @@ The frontend polls relevant ticket and notification endpoints every 15 seconds
 while open. SLA breach detection may run in a local periodic backend worker;
 it must create each breach notification only once. All data remains local.
 
+### Notification read and dismiss
+
+`PATCH /notifications/{id}/read` and `PATCH /notifications/{id}/dismiss` are
+separate owner-only actions on the same record. Read leaves the notification in
+the list and clears it from the unread count; dismiss removes it from the
+default list. Neither is a hard delete, and neither writes a history or audit
+entry. A notification may be read and still listed, or dismissed without being
+read. The React dismiss control is optional in v1; marking read is required.
+
+### Audit records
+
+`GET /audit-logs` reads records the API writes, and no route creates, updates,
+or deletes an audit record directly. One entry is written in the same
+transaction as the change it describes for:
+
+- sign-in success and sign-in failure, where `actor_id` is null on failure and
+  only the attempted email is stored;
+- user create, edit, role change, and deactivation;
+- ticket create, and every status, assignee, category, or priority change;
+- settings changes, including SLA targets and attachment limits.
+
+Each record has `id`, `actor_id`, `action`, `entity_type`, `entity_id`,
+`old_value`, `new_value`, and `created_at` (UTC). `GET /audit-logs` is
+admin-only, paginated like other list routes, and filters by `actor_id`,
+`action`, `entity_type`, `entity_id`, `created_from`, and `created_to`.
+Notification read and dismiss actions are not audited.
+
 ## Data model implied by the contract
 
 The architecture's PostgreSQL tables are Users, Roles, Tickets, Categories,
 Comments, Ticket History, Attachments, Audit Logs, Notifications, and System
 Settings. Add Knowledge Articles for the pictured knowledge-base UI and hashed
 Refresh Tokens for session management. Store file metadata in Attachments and
-file bytes outside PostgreSQL in local storage.
+file bytes outside PostgreSQL in local storage. Notifications store read and
+dismissed timestamps as independent states, and Audit Logs are append-only:
+never updated and never deleted.

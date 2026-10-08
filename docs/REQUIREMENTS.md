@@ -1,8 +1,10 @@
 # ITSM requirements and working decisions
 
-Status: F02 working baseline, 7 October 2026. The mentor left product choices to
-the team. Suhail and Kavin may revise these defaults together, but changes must
-be recorded here and reflected in the API contract before implementation.
+Status: F02 closed 8 October 2026 through pull request #1. The four decisions
+left open at handoff were resolved in review and are recorded under "F02 review
+decisions" at the end of this file. The mentor left product choices to the team.
+Suhail and Kavin may revise these defaults together, but changes must be
+recorded here and reflected in the API contract before implementation.
 
 The goal is the full locally deployed architecture in the project workbook:
 React, FastAPI, SQLAlchemy, PostgreSQL, JWT/RBAC, ticket lifecycle, support
@@ -25,7 +27,11 @@ No role can edit or delete ticket history or audit entries.
 `Open → Assigned → In Progress → Resolved → Closed`
 
 1. An employee creates a ticket with title, description, and category. It starts
-   `Open`, `Medium` priority, unassigned. The employee cannot set priority.
+   `Open`, `Medium` priority, unassigned. No role chooses priority at creation:
+   `POST /tickets` does not accept a priority field for anybody, and sending one
+   is rejected. Priority changes after creation use the reason-required route
+   below. This resolves the "priority where permitted" wording in checklist row
+   T09 as "permitted nowhere at creation".
 2. An agent may self-assign an Open ticket. An admin may assign or reassign an
    Open, Assigned, or In Progress ticket. Assigning an Open ticket sets it to
    `Assigned`.
@@ -66,6 +72,24 @@ A breach marks the ticket overdue, appears on dashboards/reports, and creates
 an in-app notification for the assignee or admins. It does not automatically
 change priority, status, or assignee.
 
+## Audit history
+
+Checklist row G01 requires audit records for login, user, ticket, and settings
+changes. Each of those actions writes one append-only Audit Log entry in the
+same transaction as the change it describes, so a failed change leaves no entry:
+
+- sign-in success and sign-in failure, so repeated failures are visible;
+- user creation, edit, role change, and deactivation;
+- ticket creation, and every status, assignee, category, or priority change;
+- settings changes, including SLA targets and attachment limits.
+
+Every entry records the actor (empty for a failed sign-in, where only the
+attempted email is stored), the action, the affected record, the old and new
+values where a value changed, and a UTC timestamp. Entries are never updated or
+deleted, and no API route writes or edits one directly: the only audit route is
+`GET /audit-logs`, which admins read. Marking a notification read or dismissing
+it is personal UI state, not an administrative action, and is not audited.
+
 ## Notifications and live updates
 
 In-app notifications are created for assignment/reassignment, a new comment,
@@ -73,6 +97,19 @@ resolution, closure, and SLA breach. Email is not required in v1. The React UI
 refreshes ticket and notification data every 15 seconds while open, without a
 manual reload. This is the agreed local-demo meaning of "real-time updates";
 WebSocket/SSE is optional later.
+
+A user has two separate actions on an own notification, which settles the
+"read or dismiss" wording in checklist row S01:
+
+- **Read** marks the notification read; it stays in the list and remains
+  visible, no longer counted as unread.
+- **Dismiss** removes the notification from the default list; it is not a hard
+  delete and can still be requested explicitly.
+
+Read and dismissed are independent states, so a notification may be read and
+still listed, or dismissed without being read. Row S02's screen must show unread
+and read notifications and allow marking read; the dismiss control in the web
+app is optional in v1, because S02's own done-when asks only for read.
 
 ## Knowledge base, attachments, reports, and settings
 
@@ -105,3 +142,18 @@ These are working team choices, not claims that the workbook specifies them:
 calendar-hour SLA targets; no reopen or automatic closure; in-app-only
 notifications; 15-second polling; attachment limits; and article approval.
 Record the date, reason, and resulting API/test changes for any revision.
+
+## F02 review decisions (8 October 2026)
+
+The first handoff left four questions unresolved on purpose rather than being
+changed unilaterally during the handoff. Kavin resolved them as F02 reviewer in
+the pull request #1 review round. Suhail may object in the next review round;
+until a change is recorded here, these are the working rules, and each one is
+reflected in `API_CONTRACT.md` in the same commit.
+
+| # | Question | Decision | Where it landed |
+| --- | --- | --- | --- |
+| 1 | Can a notification be dismissed? | Yes. Read and dismissed are separate states, `PATCH /notifications/{id}/read` and `PATCH /notifications/{id}/dismiss` both exist, and the default notification list hides dismissed notices. The web-app dismiss control is optional in v1. | "Notifications and live updates" here; notification routes in `API_CONTRACT.md` |
+| 2 | Which actions create audit records? | Sign-in success and failure, user creation/edit/deactivation/role change, every ticket change, and settings changes. Each is written in the same transaction as the change, and Audit Logs are append-only. | "Audit history" here; "Audit records" in `API_CONTRACT.md` |
+| 3 | May any role set priority when creating a ticket? | No. `POST /tickets` rejects a priority field for every role, tickets start `Medium`, and priority changes use the reason-required route. | Ticket lifecycle step 1 here; `POST /tickets` in `API_CONTRACT.md` |
+| 4 | Is checklist row F06 a duplicate of `API_CONTRACT.md`? | Partly absorbed, so F06 keeps a narrowed scope instead of being dropped: every contract route must name its request fields, response fields, and error codes, and both people must confirm the frontend and backend shapes agree. F06 is not done until that confirmation is recorded. | `API_CONTRACT.md`; checklist row F06 |

@@ -1,55 +1,75 @@
 # Current handoff
 
 Updated: 8 October 2026
-Checklist task: F02 — Confirm feature rules and interfaces
-Branch: `docs/F02-requirements`
-Pull request: [#1](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/1) into `main` — open, awaiting review
+Checklist task: F02 closeout, then F03 and F04
+Branch: `docs/F02-closeout` (off `main`), pushed to origin
+Pull request: [#2](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/2) into `main` — open, awaiting Suhail's review
 Active owner: Kavin
-Outgoing owner: Suhail (authored both F02 documentation commits)
-Handoff completed: Kavin accepted the invitation, pulled `docs/F02-requirements`,
-and became Active owner on 8 October 2026. Suhail reviews the open pull request
-and does not edit this branch until the next handoff.
+Outgoing owner: Suhail (authored the F02 documentation)
 
-## Completed on this branch
+## Where the project actually stands
 
-- Working product defaults in `docs/REQUIREMENTS.md`.
-- API endpoints and payload rules in `docs/API_CONTRACT.md`.
-- Relay process in `docs/WORKFLOW.md` and root `AGENTS.md`.
-- Pull request #1 opened against `main`.
+Pull request [#1](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/1) was merged
+into `main` on 8 October 2026 as commit `4503712`, authored by Kavin. F01 and
+F02 are therefore done in substance:
 
-## Added in this handoff
+- F01: the relay was exercised end to end in one direction — Suhail branched,
+  pushed, and opened a pull request; Kavin reviewed, merged, and pulled. The
+  reverse direction (Kavin opening, Suhail reviewing) is still unproven.
+- F02: the feature rules and API contract are on `main` and are the working
+  baseline for all later work.
 
-- This handoff note updated to the post-handoff, under-review state.
-- No edits to Suhail's requirements or API contract. The open decisions below
-  are left for review instead of being changed unilaterally during the handoff.
+The previous handoff note, which described pull request #1 as open and
+unreviewed, and `docs/WORKFLOW.md`, which told the incoming person to switch to
+`docs/F02-requirements`, are both out of date. That branch was deleted by the
+merge; `main` is the only branch.
+
+## Done in this handoff
+
+- Answered the four decisions Suhail left open for review instead of settling
+  them alone. They are recorded in `docs/REQUIREMENTS.md` under "F02 review
+  decisions", each reflected in `docs/API_CONTRACT.md` in this commit:
+  1. a notification can be dismissed as well as read;
+  2. sign-in success/failure, user changes, ticket changes, and settings changes
+     all write append-only audit records;
+  3. no role sets priority when creating a ticket;
+  4. F06 is not a duplicate: it keeps the narrowed job of confirming that every
+     route names its request fields, response fields, and error codes.
+- Rewrote this file to the post-merge state.
 
 ## Current state and checks
 
-- Documentation only; application code has not been started.
-- Documentation checks: `git diff --check` is clean and all 7 local Markdown
-  links resolve. No application code exists yet, so there are no application
-  tests to run.
-- Pull request #1 is open and unreviewed. `main` still contains only
-  `docs/WORKFLOW.md`.
-- The reference checklist workbook and its extract are kept locally outside Git
-  and must never be pushed.
+- Documentation only. There is still no application code, no database, and no
+  test suite, so there are no application tests to run.
+- Checks run on this branch: `git diff --check` is clean, all Markdown links in
+  `docs/` resolve, and the requirements and contract agree with each other on
+  all four decisions, including the new `PATCH /notifications/{id}/dismiss`
+  route and the audit write rules.
+- Pushed as `origin/docs/F02-closeout`, commit `bbf8c78`; pull request #2 is
+  open with Suhail requested as reviewer. F02 is now handed over for review, so
+  Suhail may read and comment but should not code from this branch.
+- The reference checklist workbook and its extract stay local, outside Git, and
+  must never be pushed.
 
-## Open decisions for review (pull request #1)
+## Open items carried forward
 
-1. Notification dismiss: S01 says users can "read or dismiss"; the contract has
-   read only.
-2. Audit coverage: G01 requires audit records for login, user, ticket, and
-   settings changes; the contract documents only `GET /audit-logs`.
-3. Ticket priority at creation: T09 mentions "priority where permitted", but
-   `POST /tickets` is Employee-only and employees cannot set priority.
-4. F06 overlap: "Define API request and response shapes" duplicates work that
-   `docs/API_CONTRACT.md` already covers.
+1. Suhail reviews the four decisions and objects if he disagrees. Any change
+   goes into the docs before code, as `AGENTS.md` requires.
+2. The checklist workbook still shows F01 and F02 as "In progress" with empty
+   evidence. It needs F01 and F02 set to Done with pull request #1 as evidence,
+   and F01 noted as proven in one direction only.
+3. F06 is a live task again, with the narrowed scope above.
 
 ## Exact next action
 
-Suhail reviews pull request #1 and resolves the four decisions above in review.
-Agreed edits go on this branch in the same review round, so `main` matches the
-contract when it merges. After merge: mark F02 Done in the checklist with pull
-request #1 as evidence, record F01 against the same pull request while noting
-that the reverse direction is still unproven, and both people pull `main` before
-starting F03. Do not begin application code from undocumented alternative rules.
+Suhail reviews pull request #2: the four decisions and the workbook update. He
+should object in review if he disagrees, and agreed edits go on this branch in
+the same round so `main` matches the contract when it merges. After that merge,
+start F03 and F04 together on one branch, `feat/F03-F04-scaffold`: React and
+FastAPI starter apps that run from documented commands, and a local PostgreSQL
+setup with a committed sample environment file and no secrets. Both are due
+9 October 2026 12:00, so F03/F04 is the next work, not F05.
+
+F05 (schema and migrations) follows on 12 October, and needs the F03/F04
+structure in place first. Suhail's earliest unblocked work after this merge is
+D01 (Users and Roles tables), which only needs the F04 database running.
