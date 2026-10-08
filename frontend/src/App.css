@@ -1,0 +1,59 @@
+.status-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 64px 32px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.subtitle {
+  color: var(--text);
+}
+
+.line {
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  font-family: var(--mono);
+  font-size: 15px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.pass {
+  border-left-color: #16a34a;
+}
+
+.fail {
+  border-left-color: #dc2626;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 15px;
+  color: var(--text);
+}
