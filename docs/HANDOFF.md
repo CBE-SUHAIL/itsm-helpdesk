@@ -1,75 +1,85 @@
 # Current handoff
 
 Updated: 8 October 2026
-Checklist task: F02 closeout, then F03 and F04
-Branch: `docs/F02-closeout` (off `main`), pushed to origin
-Pull request: [#2](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/2) into `main` — open, awaiting Suhail's review
-Active owner: Kavin
-Outgoing owner: Suhail (authored the F02 documentation)
+Checklist tasks: F03 and F04
+Branch: `feat/F03-F04-scaffold`, off `814b62a`
+Pull request: [#3](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/3) into `main`
+Active owner: Kavin until this is reviewed, then Suhail
+Incoming owner: Suhail (reviewer for F03/F04)
 
 ## Where the project actually stands
 
-Pull request [#1](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/1) was merged
-into `main` on 8 October 2026 as commit `4503712`, authored by Kavin. F01 and
-F02 are therefore done in substance:
+F01 and F02 are complete. Pull request #1 merged into `main` as `4503712`, and
+pull request #2 merged as `93a85c5`, so the four F02 review decisions are on
+`main` and are the working contract for everything below.
 
-- F01: the relay was exercised end to end in one direction — Suhail branched,
-  pushed, and opened a pull request; Kavin reviewed, merged, and pulled. The
-  reverse direction (Kavin opening, Suhail reviewing) is still unproven.
-- F02: the feature rules and API contract are on `main` and are the working
-  baseline for all later work.
-
-The previous handoff note, which described pull request #1 as open and
-unreviewed, and `docs/WORKFLOW.md`, which told the incoming person to switch to
-`docs/F02-requirements`, are both out of date. That branch was deleted by the
-merge; `main` is the only branch.
+This branch was cut from `814b62a`, which the merge of pull request #2 made an
+ancestor of `main`. The base is therefore current and no rebase is needed. The
+branch carries exactly one commit, the F03/F04 scaffold.
 
 ## Done in this handoff
 
-- Answered the four decisions Suhail left open for review instead of settling
-  them alone. They are recorded in `docs/REQUIREMENTS.md` under "F02 review
-  decisions", each reflected in `docs/API_CONTRACT.md` in this commit:
-  1. a notification can be dismissed as well as read;
-  2. sign-in success/failure, user changes, ticket changes, and settings changes
-     all write append-only audit records;
-  3. no role sets priority when creating a ticket;
-  4. F06 is not a duplicate: it keeps the narrowed job of confirming that every
-     route names its request fields, response fields, and error codes.
-- Rewrote this file to the post-merge state.
+F03 and F04 are scaffolded on this branch. The repository now has an
+application, where before it had only documentation:
 
-## Current state and checks
+- `compose.yaml` runs PostgreSQL 16 (`postgres:16-alpine`) with a named volume,
+  a healthcheck, and `restart: unless-stopped`.
+- `.env.example` is committed with local placeholders and no secrets. `config.py`
+  builds the SQLAlchemy URL from `POSTGRES_*`, and `compose.yaml` creates the
+  container from the same variables, so the two cannot drift apart.
+- The FastAPI backend runs from documented commands and exposes exactly one
+  route, `GET /api/v1/health`, which runs `SELECT 1` against PostgreSQL and
+  answers 503 when the database is unreachable. No models, no migrations, and no
+  session factory: those belong to F05, D01-D07, and A01-A02.
+- The React app is a Vite + TypeScript project. It calls relative `/api/v1/...`
+  paths, and the Vite dev server proxies them to the backend, so no backend host
+  is hardcoded and CORS stays a fallback for a built frontend.
+- `README.md` documents setup and a four-step verification, and records the WSL2
+  idle-shutdown behaviour described under open items below.
 
-- Documentation only. There is still no application code, no database, and no
-  test suite, so there are no application tests to run.
-- Checks run on this branch: `git diff --check` is clean, all Markdown links in
-  `docs/` resolve, and the requirements and contract agree with each other on
-  all four decisions, including the new `PATCH /notifications/{id}/dismiss`
-  route and the audit write rules.
-- Pushed as `origin/docs/F02-closeout`, commit `bbf8c78`; pull request #2 is
-  open with Suhail requested as reviewer. F02 is now handed over for review, so
-  Suhail may read and comment but should not code from this branch.
-- The reference checklist workbook and its extract stay local, outside Git, and
-  must never be pushed.
+## Checks run
+
+- `docker compose ps` reports the container `(healthy)`.
+- `curl http://localhost:8000/api/v1/health` returns `{"status":"ok","database":"ok"}`.
+- `curl http://localhost:5173/api/v1/health`, through the Vite proxy, returns the
+  same body, which proves the whole chain works: React to Vite to FastAPI to
+  PostgreSQL.
+- `cd backend && pytest -q` reports `1 passed`. The test is deliberately an
+  integration test; mocking the database would prove the app boots, not that
+  F04's database is reachable.
+- `npm run build` (`tsc -b && vite build`) completes with no type errors.
+- The frontend page serves with the title `ITSM Helpdesk`.
+- `git check-ignore` confirms `.env`, `backend/.venv`, `frontend/node_modules`, and
+  `frontend/dist` are all ignored. 30 files are staged and none contain secrets.
 
 ## Open items carried forward
 
-1. Suhail reviews the four decisions and objects if he disagrees. Any change
-   goes into the docs before code, as `AGENTS.md` requires.
-2. The checklist workbook still shows F01 and F02 as "In progress" with empty
-   evidence. It needs F01 and F02 set to Done with pull request #1 as evidence,
-   and F01 noted as proven in one direction only.
-3. F06 is a live task again, with the narrowed scope above.
+1. Pull request #3 needs Suhail's review. It is the only open change, and
+   `main` already matches the contract it was built against.
+2. **Suhail's Docker situation is unknown.** The README's golden path assumes
+   Docker is available, either as Docker Desktop or as Docker Engine inside
+   WSL2. If Suhail cannot run Docker, F04 needs a short native-install appendix,
+   and its content depends on his operating system, so it was deliberately not
+   guessed. This is the one question the reviewer should answer.
+3. On Windows with Docker Engine inside WSL2, the WSL virtual machine shuts down
+   roughly a minute after the last WSL command, which stops Docker and the
+   database with it. Keep a WSL session open while working, or run
+   `docker compose up -d` again before starting the backend. This is documented
+   in the README troubleshooting section.
+4. The checklist workbook still shows F01 and F02 as "In progress". It is a
+   local-only file outside Git and still needs F01 and F02 marked Done with pull
+   requests #1 and #2 as evidence, F01 noted as proven in one direction only, and
+   F03 and F04 marked Done with pull request #3 once it merges.
 
 ## Exact next action
 
-Suhail reviews pull request #2: the four decisions and the workbook update. He
-should object in review if he disagrees, and agreed edits go on this branch in
-the same round so `main` matches the contract when it merges. After that merge,
-start F03 and F04 together on one branch, `feat/F03-F04-scaffold`: React and
-FastAPI starter apps that run from documented commands, and a local PostgreSQL
-setup with a committed sample environment file and no secrets. Both are due
-9 October 2026 12:00, so F03/F04 is the next work, not F05.
+Suhail reviews pull request #3. He should follow the four verification steps in
+`README.md` on his own machine, then answer one question in review: does he have
+Docker available, as Docker Desktop or as Docker Engine inside WSL2? If he does
+not, a native-install appendix is added to the README in the same review round,
+matching his operating system. Any change agreed in review goes onto this branch
+before it merges, so `main` matches the documented setup.
 
-F05 (schema and migrations) follows on 12 October, and needs the F03/F04
-structure in place first. Suhail's earliest unblocked work after this merge is
-D01 (Users and Roles tables), which only needs the F04 database running.
+After that merge, two rows are unblocked and can run in parallel: F05 (database
+schema and migrations) on this side, and D01 (Users and Roles tables) on Suhail's
+side, which needs only the F04 database that is now running.
