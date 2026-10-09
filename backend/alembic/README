@@ -1,0 +1,15 @@
+Alembic migration chain for the ITSM helpdesk.
+
+The schema, the naming conventions, and the row that owns each table are
+documented in docs/DATA_MODEL.md. Read that first.
+
+Run from the backend/ directory:
+
+    alembic upgrade head     apply every pending migration
+    alembic current          show the revision the database is on
+    alembic history          list the chain, oldest last
+    alembic downgrade -1     step back one revision
+
+The database URL is not in alembic.ini. env.py builds it from the
+repository-root .env through app.core.config, so Compose and Alembic always
+point at the same database.

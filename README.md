@@ -11,8 +11,12 @@ The implementation checklist and mentor update log are maintained separately.
 ## Current status
 
 F03 and F04 are scaffolded: the React app, the FastAPI backend, and a local
-PostgreSQL container all start from the commands below. The only API route is the
-health check. Schema and migrations begin at F05.
+PostgreSQL container all start from the commands below. F05 adds the Alembic
+migration chain. Its baseline revision creates no tables on purpose, so the
+schema itself arrives with checklist rows D01-D06 and `refresh_tokens` with
+A01/A02; the schema and naming decisions are in
+[docs/DATA_MODEL.md](docs/DATA_MODEL.md). The only API route is still the health
+check.
 
 ## Stack
 
@@ -61,6 +65,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate       # macOS, Linux, WSL
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -84,8 +89,9 @@ Open http://localhost:5173.
 | Check | Command | Expected |
 | --- | --- | --- |
 | Database is running | `docker compose ps` | `... (healthy)` |
+| Migration chain is at head | `cd backend && alembic current` | `20261008_2150_baseline (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
-| Backend test | `cd backend && pytest -q` | `1 passed` |
+| Backend tests | `cd backend && pytest -q` | `3 passed` |
 | Frontend reaches the API | open http://localhost:5173 | `backend: ok` and `database: ok` |
 
 `GET /api/v1/health` answers `503` with
@@ -100,12 +106,15 @@ backend/                FastAPI application
   app/main.py           application entry point, CORS, router mounting
   app/core/config.py    settings, read from the repository-root .env
   app/core/db.py        database connectivity check
+  app/models/           SQLAlchemy Base and the shared naming convention
   app/api/v1/           versioned routes (health only so far)
+  alembic/              migration environment and revisions
+  alembic.ini           Alembic config; the database URL lives in .env instead
   tests/                pytest suite
 frontend/               React + TypeScript app (Vite)
 compose.yaml            PostgreSQL service
 .env.example            committed sample configuration, no secrets
-docs/                   requirements, API contract, workflow, handoff
+docs/                   requirements, API contract, data model, workflow, handoff
 ```
 
 ## Troubleshooting
@@ -121,6 +130,11 @@ starting the backend.
 **`uvicorn: command not found`.** The virtual environment is not active;
 activate it as shown in step 3.
 
+**`alembic` reports a connection timeout.** The database is down; see the
+previous item. `alembic` reads the same repository-root `.env` the backend does,
+so anything that fixes one fixes the other. Run it from `backend/`, because
+`alembic.ini` is there.
+
 **A port is already in use.** Change `POSTGRES_PORT` in `.env` for the database,
 or pass `--port` to `uvicorn`. If the backend moves off 8000, update the proxy
 target in `frontend/vite.config.ts`.
@@ -131,3 +145,4 @@ target in `frontend/vite.config.ts`.
 - [docs/WORKFLOW.md](docs/WORKFLOW.md) - the two-person relay workflow
 - [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) - feature rules and decisions
 - [docs/API_CONTRACT.md](docs/API_CONTRACT.md) - route and payload contract
+- [docs/DATA_MODEL.md](docs/DATA_MODEL.md) - schema, naming conventions, and table ownership

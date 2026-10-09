@@ -4,6 +4,8 @@ fastapi>=0.115
 uvicorn[standard]>=0.32
 pydantic-settings>=2.6
 sqlalchemy>=2.0
+# F05 owns the migration chain; see docs/DATA_MODEL.md.
+alembic>=1.14
 psycopg[binary]>=3.2
 
 # Test tooling (G05 owns the full suite; this is the F03/F04 smoke test).
