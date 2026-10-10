@@ -1,28 +1,20 @@
-"""F05: the migration chain reaches the database and is reversible.
+"""The migration chain reaches PostgreSQL, reverses, and matches the models.
 
-The chain carries only the baseline revision so far, and that revision creates
-no tables by design, so these tests cover the mechanism rather than the schema:
-Alembic can reach PostgreSQL through the same settings the app uses, upgrade
-from nothing to head, report head, and return to base. When D01-D06 add tables,
-the same tests keep covering the same path without changes, and
-test_models_match_the_database turns into the drift guard for D07's ORM models.
-
-Both tests run the whole chain inside one connection, using the connection
-sharing that alembic/env.py supports. That keeps the suite to one connection per
-test, which matters on a laptop where the database sits behind the WSL2 port
-forward.
+Both tests run inside one connection, using the connection sharing supported by
+alembic/env.py. Their outer transactions are always rolled back: a test
+downgrade must never erase development data.
 """
 
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
 from app.core.config import get_settings
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-BASELINE_REVISION = "20261008_2150_baseline"
 
 
 def _alembic_config() -> Config:
@@ -41,50 +33,53 @@ def _engine():
 def test_chain_reaches_head_and_returns_to_base() -> None:
     engine = _engine()
     config = _alembic_config()
+    expected_head = ScriptDirectory.from_config(config).get_current_head()
     try:
-        with engine.begin() as connection:
+        with engine.connect() as connection:
+            transaction = connection.begin()
             config.attributes["connection"] = connection
+            try:
+                command.downgrade(config, "base")
+                command.upgrade(config, "head")
+                revision = connection.execute(
+                    text("select version_num from alembic_version")
+                ).scalar()
+                assert revision == expected_head
 
-            # Start from nothing: the baseline's downgrade is a no-op, so this
-            # only removes the version row, which proves the reverse path runs.
-            command.downgrade(config, "base")
+                # Upgrading an already-current database is repeatable.
+                command.upgrade(config, "head")
+                revision = connection.execute(
+                    text("select version_num from alembic_version")
+                ).scalar()
+                assert revision == expected_head
 
-            command.upgrade(config, "head")
-            revision = connection.execute(
-                text("select version_num from alembic_version")
-            ).scalar()
-            assert revision == BASELINE_REVISION
-
-            # Head again, to prove the command is repeatable and not just lucky.
-            command.upgrade(config, "head")
-            revision = connection.execute(
-                text("select version_num from alembic_version")
-            ).scalar()
-            assert revision == BASELINE_REVISION
-
-            tables = connection.execute(
-                text(
-                    "select tablename from pg_tables "
-                    "where schemaname = 'public' order by tablename"
+                tables = set(
+                    connection.execute(
+                        text(
+                            "select tablename from pg_tables "
+                            "where schemaname = 'public'"
+                        )
+                    ).scalars()
                 )
-            ).scalars().all()
-            assert "alembic_version" in tables
+                assert {"alembic_version", "roles", "users"} <= tables
+            finally:
+                transaction.rollback()
     finally:
         engine.dispose()
 
 
 def test_models_match_the_database() -> None:
-    """Alembic's own drift check: the models and the database agree.
-
-    An empty metadata against an empty schema passes today. The value is the
-    day it stops passing, because that means a model and its migration disagree.
-    """
+    """Alembic's drift check catches a model without a matching migration."""
     engine = _engine()
     config = _alembic_config()
     try:
-        with engine.begin() as connection:
+        with engine.connect() as connection:
+            transaction = connection.begin()
             config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-            command.check(config)
+            try:
+                command.upgrade(config, "head")
+                command.check(config)
+            finally:
+                transaction.rollback()
     finally:
         engine.dispose()
