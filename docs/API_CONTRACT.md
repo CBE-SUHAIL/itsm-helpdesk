@@ -184,7 +184,11 @@ never updated and never deleted.
 The tables above cover all 36 F02 routes. Before marking F06 done, Suhail and
 Kavin must explicitly confirm the proposed field names and error codes,
 especially the `User`/`Ticket`/`Settings` shapes, dashboard counts, report
-export fields, and the 400-versus-422 distinction. Record their agreement in
+export fields, and the 400-versus-422 distinction. Also resolve the existing
+document mismatch: `DATA_MODEL.md` lists a category on `knowledge_articles`,
+but the F02 API and requirements never defined an article category field or
+whether it reuses ticket categories. This draft leaves it out pending review.
+Record their agreement in
 `docs/HANDOFF.md` during the F06 review; the branch must not be treated as a
 completed frontend/backend agreement until then. Later implementation tests
 and FastAPI's `/docs` must match the confirmed shapes.
