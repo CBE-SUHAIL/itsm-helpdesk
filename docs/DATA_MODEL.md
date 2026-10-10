@@ -25,9 +25,10 @@ F05 owns the migration **mechanism**. The baseline revision
   exists. Constraint names are compared by name during autogenerate, so renaming
   them once a table exists costs a migration per rename.
 
-The tables arrive with D01-D06 and `refresh_tokens` with A01/A02. ORM models and
-the session factory arrive with D07, which is also when
-`test_models_match_the_database` starts doing real work as a drift guard.
+The tables and their minimal ORM models arrive together with D01-D06, and
+`refresh_tokens` with A01/A02. D07 completes shared relationships and session
+handling. Keeping each model beside its migration lets
+`test_models_match_the_database` detect drift from D01 onward.
 
 ## Naming conventions
 
@@ -79,19 +80,17 @@ storage shape. Do not vary one table at a time.
 | Row | Tables | Notes |
 | --- | --- | --- |
 | F05 | *(none)* | Mechanism only. `alembic_version` is Alembic's own table. |
-| D01 | `users`, `roles` | Confirmed by the F03/F04 handoff: "D01 (Users and Roles tables)". |
-| D02 | `categories`, `system_settings` | Reference data an admin edits. |
-| D03 | `tickets` | The core record, including the SLA snapshot columns. |
-| D04 | `comments`, `attachments` | The conversation and its files. |
-| D05 | `ticket_history`, `audit_logs` | The two immutable trails. |
-| D06 | `notifications`, `knowledge_articles` | The remaining two. |
+| D01 | `users`, `roles` | Users reference one of the three fixed roles. |
+| D02 | `tickets`, `categories` | Core ticket and category records. |
+| D03 | `comments`, `ticket_history` | Conversation and immutable ticket changes. |
+| D04 | `attachments`, `audit_logs` | File metadata and immutable activity records. |
+| D05 | `notifications`, `system_settings` | Personal notices and admin settings. |
+| D06 | `knowledge_articles` | Knowledge-base content. |
 | A01/A02 | `refresh_tokens` | Hashed refresh tokens for session management. |
 
-D01 is fixed. The D02-D06 split is a working plan carried from the ordering in
-`API_CONTRACT.md`, not a decision recorded in the checklist workbook, which is
-local-only and not in Git. Confirm it against the workbook and correct this
-table in the same commit as the first migration that disagrees with it; a wrong
-row number here is a bookkeeping error, not a schema error.
+This assignment now matches the local project checklist. The prior F05 draft
+mapped D02-D06 differently; D01 corrected the bookkeeping before later tables
+were added.
 
 ## Columns the contract already fixes
 
@@ -100,9 +99,10 @@ listed so a D-row does not have to rediscover them:
 
 - `users`: name, email (unique), password hash, role, active flag. The password
   hash is never returned by any route.
-- `roles`: name, plus whatever describes the three permission sets. Whether
-  permissions are columns or rows is a D01 decision; the three role *names* are
-  not, they are Employee, Support agent, and Admin.
+- `roles`: one of the three fixed names Employee, Support agent, or Admin. D01
+  stores names only; A03 will enforce their permission sets from
+  `REQUIREMENTS.md` in backend code. There are no editable permission columns
+  or rows in v1 because the contract has no role-permission editing API.
 - `tickets`: title, description, `category_id`, `creator_id`, `assignee_id`
   (nullable while unassigned), status, priority, `response_due_at`,
   `resolution_due_at`, `first_response_at`, `resolved_at`, `created_at`,
@@ -120,8 +120,9 @@ listed so a D-row does not have to rediscover them:
 - `attachments`: metadata only. File bytes live in a local directory outside the
   public web folder; the stored name is generated server-side and a
   client-supplied path is never trusted.
-- `knowledge_articles`: title, body, author, and a published flag. Drafts are
-  visible to their author agent and to admins; employees see published only.
+- `knowledge_articles`: title, body, category, author, and a published flag.
+  Drafts are visible to their author agent and to admins; employees see
+  published only.
 - `system_settings`: SLA targets per priority, attachment size limit, and
   allowed file types.
 - `refresh_tokens`: the hash of the token, never the token itself, plus its
@@ -130,9 +131,21 @@ listed so a D-row does not have to rediscover them:
 ## Not yet decided here
 
 Left deliberately to the rows that own them, so this file does not pretend to a
-decision nobody made: whether `roles` stores permissions as columns or rows
-(D01); whether settings is one row read as a singleton or a key/value table
-(D02); the exact ticket status and priority check constraints, which must match
-the transition rules in `REQUIREMENTS.md` exactly (D03); attachment storage
-layout on disk (D04); the partitioning or index strategy for the two append-only
-trails, if either grows past a demo (D05).
+decision nobody made: whether settings is one row read as a singleton or a
+key/value table (D05); the exact ticket status and priority check constraints,
+which must match the transition rules in `REQUIREMENTS.md` exactly (D02);
+attachment storage layout on disk (D04); or the index strategy for ticket
+history (D03) and audit logs (D04) if either grows past a demo.
+
+## D01 decisions
+
+- `users.role_id` is a required foreign key to `roles.id`; the database blocks
+  deleting a role while any user references it. Users themselves are deactivated,
+  not deleted.
+- `roles.name` is unique and limited to the three agreed names. The permission
+  matrix remains in `REQUIREMENTS.md` until A03 implements it.
+- `users.email` is unique and stored trimmed and lowercase. The database rejects
+  non-normalized values, so a later API must normalize before insertion and
+  login lookup. User name and password hash cannot be blank. The hash is never
+  exposed in an API response.
+- Both tables use UUID primary keys and application-written UTC timestamps.

@@ -12,9 +12,9 @@ The implementation checklist and mentor update log are maintained separately.
 
 F03 and F04 are scaffolded: the React app, the FastAPI backend, and a local
 PostgreSQL container all start from the commands below. F05 adds the Alembic
-migration chain. Its baseline revision creates no tables on purpose, so the
-schema itself arrives with checklist rows D01-D06 and `refresh_tokens` with
-A01/A02; the schema and naming decisions are in
+migration chain. D01 adds the `roles` and `users` tables and their first models;
+later D-rows add the other tables, and A01/A02 adds `refresh_tokens`. Schema
+decisions and the table-to-task map are in
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md). The only API route is still the health
 check.
 
@@ -89,9 +89,9 @@ Open http://localhost:5173.
 | Check | Command | Expected |
 | --- | --- | --- |
 | Database is running | `docker compose ps` | `... (healthy)` |
-| Migration chain is at head | `cd backend && alembic current` | `20261008_2150_baseline (head)` |
+| Migration chain is at head | `cd backend && alembic current` | `20261010_0001_d01_users_roles (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
-| Backend tests | `cd backend && pytest -q` | `3 passed` |
+| Backend tests | `cd backend && pytest -q` | All tests pass |
 | Frontend reaches the API | open http://localhost:5173 | `backend: ok` and `database: ok` |
 
 `GET /api/v1/health` answers `503` with
@@ -106,7 +106,7 @@ backend/                FastAPI application
   app/main.py           application entry point, CORS, router mounting
   app/core/config.py    settings, read from the repository-root .env
   app/core/db.py        database connectivity check
-  app/models/           SQLAlchemy Base and the shared naming convention
+  app/models/           SQLAlchemy Base, Roles, Users, and naming convention
   app/api/v1/           versioned routes (health only so far)
   alembic/              migration environment and revisions
   alembic.ini           Alembic config; the database URL lives in .env instead
