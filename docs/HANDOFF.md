@@ -35,26 +35,22 @@ with Kavin; merging that PR did not satisfy the original done-when wording.
 ## Checks and open items
 
 - Python files parse, and `git diff --check` is clean.
-- Integration tests are **not yet run**. This environment cannot install the
-  Python packages from the network or access Docker Desktop's API. Do not mark
-  D01 done or push it as verified until the commands below pass on Suhail's Mac.
+- On 10 October, Suhail ran `.venv/bin/alembic upgrade head` successfully and
+  `.venv/bin/pytest -q` reported **4 passed, 1 warning** (a Starlette
+  `TestClient` deprecation warning). The database migration reached
+  `20261010_0001_d01_users_roles`.
+- Suhail's Mac also runs a separate PostgreSQL server on loopback port 5432.
+  The ignored local `.env` uses `POSTGRES_PORT=5433` so the backend reaches the
+  Docker database. That machine's Docker project is `itsm-helpdesk-d01`; use
+  `docker compose -p itsm-helpdesk-d01 ...` there. Do not copy this local port
+  choice or Docker project name into Kavin's environment without checking it.
 - The project checklist workbook is local-only and still has stale statuses.
   Update it after the PR is merged, with evidence links.
 
 ## Exact next action
 
-On Suhail's Mac, start Docker Desktop, then from the repository root run:
-
-```bash
-cp -n .env.example .env  # keep an existing local configuration
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
-docker compose up -d
-cd backend
-.venv/bin/alembic upgrade head
-.venv/bin/pytest -q
-```
-
-If those checks pass, update this note with the actual results, commit the D01
-branch, push it, and open a PR for Kavin to review. If they fail, fix D01 here
-before handoff. The next code task after D01 review is F06, unless the team
-first chooses to close the F05 acceptance gap.
+Push this verified D01 branch, then open a PR against `main` for Kavin to
+review. Kavin should not start editing from an older remote state; after the
+push, he can review the PR and pull the task branch if changes are needed.
+After D01 merges, update the checklist with the PR evidence, pull `main`, and
+then start F06 unless the team first chooses to close the F05 acceptance gap.
