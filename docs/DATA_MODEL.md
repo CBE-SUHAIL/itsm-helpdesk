@@ -112,8 +112,12 @@ listed so a D-row does not have to rediscover them:
   `updated_at`. `response_overdue` and `resolution_overdue` appear in the
   ticket response but are **derived** from the due and actual timestamps against
   the current clock, so they are not stored columns.
-- `ticket_history`: actor, old value, new value, reason where the change needed
-  one, and UTC time.
+- `comments`: ticket, author, non-blank body, and UTC time. No `updated_at`:
+  there is no comment update route in the contract, so a comment is never
+  edited.
+- `ticket_history`: actor, the changed field, old value, new value, reason where
+  the change needed one, and UTC time. `reason` is also where the resolution
+  note lives, because the contract's Ticket shape has no such field.
 - `audit_logs`: `actor_id` (null on a failed sign-in, where only the attempted
   email is stored), action, `entity_type`, `entity_id`, `old_value`,
   `new_value`, `created_at`.
@@ -136,8 +140,7 @@ listed so a D-row does not have to rediscover them:
 Left deliberately to the rows that own them, so this file does not pretend to a
 decision nobody made: whether settings is one row read as a singleton or a
 key/value table (D05); attachment storage layout on disk (D04); or the index
-strategy for ticket history (D03) and audit logs (D04) if either grows past a
-demo.
+strategy for audit logs (D04) if it grows past a demo.
 
 ## D01 decisions
 
@@ -189,3 +192,31 @@ demo.
   `POST /tickets/{id}/status` requires one when moving to Resolved.
 - `categories.description` is `NOT NULL`: the contract's Category shape always
   carries it and never marks it nullable. Empty is allowed, null is not.
+
+## D03 decisions
+
+- `comments` and `ticket_history` carry `created_at` only, with no `updated_at`.
+  Neither has an update route in the contract: a comment is never edited, and a
+  history row is written once, in the same transaction as the change it
+  describes.
+- `ticket_history.field` is a closed set enforced by a check constraint:
+  `status`, `assignee_id`, `category_id`, `priority`. That is exactly the list of
+  changes `REQUIREMENTS.md` says must be recorded. The closed set is schema; the
+  meaning of a change is not.
+- "One row per changed field" is enforced by the API that writes the rows
+  (T02/T03), not by a constraint, for the same reason transitions are not
+  constraints: an `old_value IS DISTINCT FROM new_value` check would have to be
+  revisited by T02 and could reject a legitimate record. This is deliberate.
+- `old_value` and `new_value` are `varchar(64)`: a status or priority label, or
+  the string form of a UUID. `reason` is `text`, because the resolution note
+  lands there.
+- **Index strategy**, which the F05 draft left to this row: each table gets one
+  composite index on `(ticket_id, created_at)`. The contract's only read routes
+  for these tables filter by ticket and order oldest first, so one index serves
+  both the filter and the ordering. There is deliberately no index on `author_id`
+  or `actor_id`: no route looks a comment or a history row up by author, and at
+  demo size the restrictive delete check does not need one. Revisit if a report
+  ever filters by actor.
+- Neither table is reachable by a write route. `GET /tickets/{id}/history` and
+  `GET /tickets/{id}/comments` are readers; the rows are written by the ticket
+  routes in the same transaction as the change.
