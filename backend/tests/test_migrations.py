@@ -63,6 +63,7 @@ def test_chain_reaches_head_and_returns_to_base() -> None:
                 )
                 assert {"alembic_version", "roles", "users"} <= tables
                 assert {"categories", "tickets"} <= tables
+                assert {"comments", "ticket_history"} <= tables
             finally:
                 transaction.rollback()
     finally:

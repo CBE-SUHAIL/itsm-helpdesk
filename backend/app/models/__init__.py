@@ -38,3 +38,5 @@ from app.models.role import Role  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
 from app.models.category import Category  # noqa: E402, F401
 from app.models.ticket import Ticket  # noqa: E402, F401
+from app.models.comment import Comment  # noqa: E402, F401
+from app.models.ticket_history import TicketHistory  # noqa: E402, F401
