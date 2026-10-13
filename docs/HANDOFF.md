@@ -1,12 +1,11 @@
 # Current handoff
 
 Updated: 14 October 2026
-Checklist task: F06 (API request/response/error shapes) — reviewed and merged;
-next row is D02 (Tickets and Categories tables)
-Branch: `docs/F06-closeout`, off `main` at `6bdc3c3`
-Pull request: [#7](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/7) into `main`
-Active owner: Kavin (this closeout, then D02)
-Incoming owner: Suhail (reviewer for this closeout and for D02)
+Checklist task: D02 (Tickets and Categories tables) — next row
+Branch: `docs/handoff-branch-cleanup`, off `main` at `585d6a6`
+Pull request: [#8](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/8) into `main`
+Active owner: Kavin (D02 once this cleanup merges)
+Incoming owner: Suhail (reviewer for D02)
 
 ## Where the project stands
 
@@ -19,6 +18,10 @@ Pull request #6 is the first merge in this project to carry a GitHub review:
 Kavin approved it with the verification below written into the PR, which is what
 the F03 evidence note asked reviewers to start doing instead of leaving the
 review trail only in this file.
+
+`origin` now carries only `main`: the merged `feat/F05-schema-migrations`,
+`docs/F06-api-shapes`, and `docs/F06-closeout` branches were deleted after
+checking that each tip was already contained in `main`.
 
 ## F06 review outcome (14 October 2026)
 
@@ -76,10 +79,7 @@ Kavin reviewed the branch as the incoming reviewer named by the F06 handoff.
    and D01 and F06 are still "Not started" after merging as pull requests #5 and
    #6. Update the statuses and evidence links after this closeout merges, and
    leave F06 open until item 1 is decided.
-6. Merged branches `feat/F05-schema-migrations` (`305ad52`) and
-   `docs/F06-api-shapes` (`fe5009e`) still exist on `origin`; both are merged and
-   safe to delete.
-7. Targets have slipped: F06 was due 12 October and was reviewed on 14 October;
+6. Targets have slipped: F06 was due 12 October and was reviewed on 14 October;
    D02 was due 13 October. Worth stating in the next mentor update.
 
 ## Checks run
@@ -95,9 +95,8 @@ Kavin reviewed the branch as the incoming reviewer named by the F06 handoff.
 
 ## Exact next action
 
-Suhail reviews and merges this closeout pull request #7; Kavin authored it, so
-Kavin must not merge it. Then both switch to `main` and pull with
-`git pull --ff-only`.
+This cleanup pull request #8 then merges. Both switch to `main` and pull with
+`git pull --ff-only` before touching anything.
 
 After that, **D02 (Tickets and Categories tables)** is the next row. The
 checklist assigns it to Kavin as owner and Suhail as reviewer, so it starts on
