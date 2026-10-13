@@ -1,6 +1,7 @@
 # Data model
 
-Status: opened by F05 (database schema and migrations), 9 October 2026.
+Status: opened by F05 (database schema and migrations), 9 October 2026; D01
+landed 10 October and D02 landed 14 October 2026.
 
 [REQUIREMENTS.md](REQUIREMENTS.md) says what the system must do and
 [API_CONTRACT.md](API_CONTRACT.md) says what the API exchanges. Neither decides
@@ -99,6 +100,8 @@ listed so a D-row does not have to rediscover them:
 
 - `users`: name, email (unique), password hash, role, active flag. The password
   hash is never returned by any route.
+- `categories`: name (unique), description, and an active flag. Deactivating a
+  category leaves existing tickets valid; the API lists active categories only.
 - `roles`: one of the three fixed names Employee, Support agent, or Admin. D01
   stores names only; A03 will enforce their permission sets from
   `REQUIREMENTS.md` in backend code. There are no editable permission columns
@@ -132,10 +135,9 @@ listed so a D-row does not have to rediscover them:
 
 Left deliberately to the rows that own them, so this file does not pretend to a
 decision nobody made: whether settings is one row read as a singleton or a
-key/value table (D05); the exact ticket status and priority check constraints,
-which must match the transition rules in `REQUIREMENTS.md` exactly (D02);
-attachment storage layout on disk (D04); or the index strategy for ticket
-history (D03) and audit logs (D04) if either grows past a demo.
+key/value table (D05); attachment storage layout on disk (D04); or the index
+strategy for ticket history (D03) and audit logs (D04) if either grows past a
+demo.
 
 ## D01 decisions
 
@@ -149,3 +151,41 @@ history (D03) and audit logs (D04) if either grows past a demo.
   login lookup. User name and password hash cannot be blank. The hash is never
   exposed in an API response.
 - Both tables use UUID primary keys and application-written UTC timestamps.
+
+## D02 decisions
+
+- `tickets` carries the contract's Ticket columns. `response_overdue` and
+  `resolution_overdue` stay out of the table: they are derived from
+  `response_due_at`, `resolution_due_at`, and the clock, so a stored copy could
+  only go stale.
+- The closed sets are text plus a `CHECK`, and they match `REQUIREMENTS.md`
+  exactly: status `Open, Assigned, In Progress, Resolved, Closed`, priority
+  `Low, Medium, High, Critical`. Both are case-sensitive, so `open` or `medium`
+  is rejected rather than silently accepted.
+- Which status may follow which is deliberately **not** a database constraint.
+  The legal transitions, and who may make them, are T02 business rules; encoding
+  them here would fight T02 and make a legitimate intermediate state
+  unrepresentable.
+- `tickets.category_id` is required and restrictive, so a category tickets still
+  use cannot be deleted. `creator_id` and `assignee_id` are restrictive the same
+  way, and `assignee_id` is nullable because a ticket starts unassigned.
+- `response_due_at` and `resolution_due_at` are required and are copied from the
+  SLA targets in force when the ticket is created; nothing recomputes them on
+  read, so a later settings change cannot rewrite an existing deadline.
+- Indexes cover `category_id`, `creator_id`, and `assignee_id` only. `status`
+  and `priority` are not indexed because 5 and 4 distinct values make a
+  sequential scan the cheaper plan at demo size. Revisit with real volume.
+- The model and the migration must declare the same indexes; `alembic check`
+  runs inside `tests/test_migrations.py` and fails on drift. It caught exactly
+  that during D02, which is why the status and priority indexes were dropped.
+- A revision id must fit `alembic_version.version_num`, which is `varchar(32)`.
+  D01's `<date>_<counter>_<row>_<slug>` pattern does not scale:
+  `20261014_0001_d02_tickets_categories` is 36 characters and PostgreSQL
+  rejects it. D02 uses `20261014_d02_tickets_categories` (31 characters). Later
+  rows must stay at 32 or fewer, so a long slug means dropping the counter
+  rather than truncating the date.
+- The resolution note lives in `ticket_history.reason` (D03), not on `tickets`.
+  The contract's Ticket shape has no resolution-note field, while
+  `POST /tickets/{id}/status` requires one when moving to Resolved.
+- `categories.description` is `NOT NULL`: the contract's Category shape always
+  carries it and never marks it nullable. Empty is allowed, null is not.

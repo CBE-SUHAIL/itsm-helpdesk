@@ -36,3 +36,5 @@ class Base(DeclarativeBase):
 # add their models here before generating or checking a migration.
 from app.models.role import Role  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
+from app.models.category import Category  # noqa: E402, F401
+from app.models.ticket import Ticket  # noqa: E402, F401
