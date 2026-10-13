@@ -120,13 +120,13 @@ listed so a D-row does not have to rediscover them:
   note lives, because the contract's Ticket shape has no such field.
 - `audit_logs`: `actor_id` (null on a failed sign-in, where only the attempted
   email is stored), action, `entity_type`, `entity_id`, `old_value`,
-  `new_value`, `created_at`.
+  `new_value`, `created_at`. The two value columns are `JSONB`.
 - `notifications`: owner, and **two independent** timestamps, read and
   dismissed, because a notification may be read and still listed, or dismissed
   without being read.
-- `attachments`: metadata only. File bytes live in a local directory outside the
-  public web folder; the stored name is generated server-side and a
-  client-supplied path is never trusted.
+- `attachments`: metadata only. File bytes live under `uploads/` at the
+  repository root, outside anything the app serves; the stored name is generated
+  server-side and a client-supplied file name is never used to build a path.
 - `knowledge_articles`: title, body, category, author, and a published flag.
   Drafts are visible to their author agent and to admins; employees see
   published only.
@@ -139,8 +139,8 @@ listed so a D-row does not have to rediscover them:
 
 Left deliberately to the rows that own them, so this file does not pretend to a
 decision nobody made: whether settings is one row read as a singleton or a
-key/value table (D05); attachment storage layout on disk (D04); or the index
-strategy for audit logs (D04) if it grows past a demo.
+key/value table (D05), and who inserts that first row — migrations stay
+schema-only, so the defaults in `REQUIREMENTS.md` still need a home.
 
 ## D01 decisions
 
@@ -220,3 +220,38 @@ strategy for audit logs (D04) if it grows past a demo.
 - Neither table is reachable by a write route. `GET /tickets/{id}/history` and
   `GET /tickets/{id}/comments` are readers; the rows are written by the ticket
   routes in the same transaction as the change.
+
+## D04 decisions
+
+- **Attachment storage layout**, the other question the F05 draft left open.
+  Bytes live under `uploads/` at the repository root: `.gitignore` already
+  excludes it, and nothing the FastAPI app or the Vite dev server serves comes
+  from there. A file sits at
+  `uploads/<first two characters of storage_name>/<storage_name>`, so a demo with
+  thousands of files does not put them all in one directory.
+- `storage_name` is generated server-side: a UUID4 in hex plus an extension
+  chosen from the allowed types by MIME type. The client's `file_name` is kept
+  for display only. `storage_name` is the one column the contract hides from
+  responses, and it is unique and non-blank.
+- The table stores `storage_name` with no directory part, and the root is
+  composed when a file is read. Moving `uploads/` therefore invalidates nothing
+  and needs no migration.
+- Attachment rows are write-once: no `updated_at`, and no update or delete route
+  in v1. `size_bytes` must not be negative; the upper limit and the allowed types
+  come from settings and are enforced by the API, because the limit is
+  configurable and a check constraint cannot track it.
+- **Audit-log index strategy**, the other F05 open question. One index on
+  `created_at` serves the newest-first listing route, and one on
+  `(entity_type, entity_id)` serves a single record's own history. `actor_id` and
+  `action` are deliberately unindexed: each narrows the listing rather than
+  being a lookup of its own, and at demo size the `created_at` index already
+  bounds the scan.
+- `old_value` and `new_value` are `JSONB` rather than `JSON`: the contract says
+  "nullable JSON", and only JSONB can be indexed if a later report needs to
+  query inside a value.
+- `action` and `entity_type` carry no closed set. The contract names filter
+  values but never fixes the vocabulary, and G01 owns the exact strings; a
+  non-blank check only stops an empty string.
+- `entity_id` has no foreign key because it identifies whatever `entity_type`
+  names, so it cannot point at one table. `actor_id` does, and is nullable for
+  the failed sign-in that has no actor.
