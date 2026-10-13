@@ -1,4 +1,4 @@
-# API contract (F02 baseline; F06 shape draft)
+# API contract (F02 baseline; F06 shapes confirmed 14 October 2026)
 
 This is the shared agreement between the React app and FastAPI backend. It is
 not implemented yet. If the team changes a route or rule, update this file,
@@ -9,8 +9,12 @@ Pull request #1 accepted this baseline and the four review decisions recorded in
 [REQUIREMENTS.md](REQUIREMENTS.md) under "F02 review decisions". Checklist row F06
 keeps the narrower job of confirming that every route below names its request
 fields, response fields, and error codes, and that both people agree on them.
-The F06 additions below are a **local draft** awaiting Kavin's shape review;
-they are not implemented API behavior or a claim that F06 is complete.
+The F06 additions below were reviewed and approved by Kavin in pull request
+[#6](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/6) on 14 October 2026 and
+are the agreed request/response/error shapes. They are still not implemented API
+behavior. The `Article` category is the one shape left open; see the F06 review
+outcome at the end of this file. Checklist row F06 stays open until that is
+decided.
 
 Base path: `/api/v1`. JSON is used except for multipart file upload and CSV/PDF
 downloads. IDs are UUID strings. Timestamps are ISO 8601 UTC strings ending in
@@ -179,16 +183,29 @@ file bytes outside PostgreSQL in local storage. Notifications store read and
 dismissed timestamps as independent states, and Audit Logs are append-only:
 never updated and never deleted.
 
-## F06 review before this becomes the shared contract
+## F06 review outcome (14 October 2026)
 
-The tables above cover all 36 F02 routes. Before marking F06 done, Suhail and
-Kavin must explicitly confirm the proposed field names and error codes,
-especially the `User`/`Ticket`/`Settings` shapes, dashboard counts, report
-export fields, and the 400-versus-422 distinction. Also resolve the existing
-document mismatch: `DATA_MODEL.md` lists a category on `knowledge_articles`,
-but the F02 API and requirements never defined an article category field or
-whether it reuses ticket categories. This draft leaves it out pending review.
-Record their agreement in
-`docs/HANDOFF.md` during the F06 review; the branch must not be treated as a
-completed frontend/backend agreement until then. Later implementation tests
-and FastAPI's `/docs` must match the confirmed shapes.
+The tables above cover all 36 F02 routes. Kavin reviewed them as the incoming
+reviewer named by the F06 handoff, approved them in pull request #6, and
+recorded the verification there and in `docs/HANDOFF.md`. Agreed as written:
+all 36 route names, the `Who` rules, the request fields, the success response
+fields, the error codes, the `Page<T>` pagination and `limit`/`offset`
+defaults, and this rule for status codes —
+
+- `400`: the request is well formed but the domain refuses it (inactive
+  category, disallowed attachment type or excess size, invalid settings limits,
+  duplicate name or email, invalid assignee);
+- `422`: the request itself does not validate (wrong or missing types, extra
+  fields, blank required strings, malformed UUIDs, invalid enum values).
+
+The `User` shape was checked against the merged D01 schema: this contract
+exposes the role *name*, and the three names above match D01's
+`ck_roles_name_allowed` constraint on `roles.name`.
+
+Still open, and the reason checklist row F06 is not marked done yet: the
+`Article` shape above omits a category, but `DATA_MODEL.md` and checklist row D06
+both require an article category. Decide before D06, update this file and
+`DATA_MODEL.md` together, and note that the contract defines no separate
+article-category route or field, so reusing `categories` is the cheapest option.
+
+Later implementation tests and FastAPI's `/docs` must match these shapes.
