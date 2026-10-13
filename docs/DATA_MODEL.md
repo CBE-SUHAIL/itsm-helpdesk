@@ -123,7 +123,7 @@ listed so a D-row does not have to rediscover them:
   `new_value`, `created_at`. The two value columns are `JSONB`.
 - `notifications`: owner, and **two independent** timestamps, read and
   dismissed, because a notification may be read and still listed, or dismissed
-  without being read.
+  without being read. `type` is one of the five values the contract lists.
 - `attachments`: metadata only. File bytes live under `uploads/` at the
   repository root, outside anything the app serves; the stored name is generated
   server-side and a client-supplied file name is never used to build a path.
@@ -131,16 +131,18 @@ listed so a D-row does not have to rediscover them:
   Drafts are visible to their author agent and to admins; employees see
   published only.
 - `system_settings`: SLA targets per priority, attachment size limit, and
-  allowed file types.
+  allowed file types. One row only, seeded by D05 with the defaults in
+  `REQUIREMENTS.md`.
 - `refresh_tokens`: the hash of the token, never the token itself, plus its
   owning user and expiry, so logout can revoke exactly one.
 
 ## Not yet decided here
 
-Left deliberately to the rows that own them, so this file does not pretend to a
-decision nobody made: whether settings is one row read as a singleton or a
-key/value table (D05), and who inserts that first row — migrations stay
-schema-only, so the defaults in `REQUIREMENTS.md` still need a home.
+D01-D05 have all landed and recorded their decisions below, so nothing in this
+file is left deliberately open at the time of writing. What remains undecided
+here belongs to rows that have not run yet: the knowledge-article shape (D06,
+including whether an article has a category) and the shared relationships and
+session handling (D07). `refresh_tokens` arrives with A01/A02.
 
 ## D01 decisions
 
@@ -255,3 +257,40 @@ schema-only, so the defaults in `REQUIREMENTS.md` still need a home.
 - `entity_id` has no foreign key because it identifies whatever `entity_type`
   names, so it cannot point at one table. `actor_id` does, and is nullable for
   the failed sign-in that has no actor.
+
+## D05 decisions
+
+- **Settings is one row read as a singleton**, not a key/value table. The
+  contract's Settings shape is a single object, so a single row is the honest
+  storage. `is_singleton` plus a unique constraint is what makes a second row
+  impossible, and it keeps the UUID primary key convention the other tables
+  follow. A key/value table would have needed a different shape for the same
+  contract.
+- **D05 seeds that row in the migration**, with the SLA targets, size limit, and
+  allowed types from `REQUIREMENTS.md`. This is the first migration that writes
+  data. Two reasons: the contract calls them "seeded defaults editable by an
+  admin", and T01 cannot compute a ticket's deadlines without the row existing.
+  Demo users and tickets stay in D08; this is reference data the system cannot
+  run without. The row's id is a fixed UUID, so the API can address it without a
+  lookup by "the only row".
+- `sla_targets` is `JSONB` with a check constraint that all four priorities are
+  present as keys. The inner pair of hours is the API's to validate, because the
+  check cannot see inside the objects without freezing their exact shape.
+- `allowed_attachment_types` is a native `text[]`, not JSONB: the contract says
+  "array of MIME type strings", and a native array is what that is. A check
+  constraint requires at least one entry.
+- `max_attachment_bytes` must be positive. It is the limit D04's attachments are
+  measured against, and the seeded value is 10 MiB.
+- `notifications.type` is a closed set as a check constraint, matching the five
+  values in the contract: `assignment`, `comment`, `resolution`, `closure`,
+  `sla_breach`. A reassignment uses `assignment`.
+- `notifications` carries one composite index on `(recipient_id, created_at)`,
+  which serves the default list (current user, newest first) for both the
+  dismissed-excluded and dismissed-included variants. `ticket_id` is unindexed:
+  no route lists notifications by ticket.
+- `system_settings` is the only table besides `roles`/`users`/`categories`/
+  `tickets` that carries `updated_at`, because `PATCH /settings` exists and
+  edits it in place. A notification is edited only through its read and dismiss
+  routes, which have their own timestamps, so it has no `updated_at`.
+- Settings changes are audited by G01, in the same transaction as the change, so
+  no separate history table is needed here.

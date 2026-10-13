@@ -1,85 +1,93 @@
 # Current handoff
 
 Updated: 14 October 2026
-Checklist task: D04 (Attachments and Audit Logs tables)
-Branch: `feat/D04-attachments-audit`, off `main` at `0e25fcd`
-Pull request: [#11](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/11) into `main`
-Active owner: Kavin
-Incoming owner: Suhail (reviewer for D04, and reviewer of the next row)
+Checklist task: D05 (Notifications and System Settings tables)
+Branch: `feat/D05-notifications-settings`, off `main` at `77dac86`
+Pull request: [#12](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/12) into `main`
+Active owner: Kavin for this branch
+Incoming owner: **Suhail** — reviews and merges #12, then becomes Active owner of D06
 
 ## Where the project stands
 
 F01-F04 are on `main`. F05 merged as pull request #4 (`4a549ed`) and provides the
 Alembic migration mechanism, with the ER-diagram part of its acceptance still
-open (item 6 below). D01 merged as #5 (`1faf1b8`), F06 merged as #6 (`6bdc3c3`)
-with its review recorded in the PR and in `docs/API_CONTRACT.md`, D02 merged as
-#9 (`57a90e4`), and D03 merged as #10 (`0e25fcd`). Pull requests #7 and #8 were
-documentation closeouts. `origin` carries only `main`.
+open (item 6 below). D01 merged as #5 (`1faf1b8`), F06 as #6 (`6bdc3c3`) with its
+review recorded in the PR and in `docs/API_CONTRACT.md`, D02 as #9 (`57a90e4`),
+D03 as #10 (`0e25fcd`), and D04 as #11 (`77dac86`). Pull requests #7 and #8 were
+documentation closeouts, and `origin` carries only `main`.
 
-**Since #6 there has been no review at all.** #7, #8, #9, and #10 were merged
-without one, at Kavin's direction. The checklist evidence column should say that
-rather than implying a review trail that does not exist. **The next row, D05, is
-deliberately left open for review**, so the relay resumes with an actual reviewer.
+**Every schema row from D01 to D05 is now merged, and the database holds all ten
+tables the architecture picture names**, plus `alembic_version`: `roles`, `users`,
+`categories`, `tickets`, `comments`, `ticket_history`, `attachments`,
+`audit_logs`, `notifications`, `system_settings`.
 
-D04 is this branch. The database now holds eight tables plus `alembic_version`:
-`roles`, `users`, `categories`, `tickets`, `comments`, `ticket_history`,
-`attachments`, `audit_logs`.
+**No pull request after #6 has been reviewed.** #7-#11 were merged without one at
+Kavin's direction, and the checklist evidence should say so rather than implying
+a review trail that does not exist. **#12 is deliberately open for review** and is
+the point at which the relay resumes, because the next row belongs to Suhail.
 
 ## Done in this handoff
 
-- `backend/app/models/attachment.py` and `backend/app/models/audit_log.py`, both
-  registered in `backend/app/models/__init__.py`.
-- `backend/alembic/versions/20261014_d04_attachments_audit.py` is the new head,
-  `down_revision = 20261014_d03_comments_history`, 30 characters.
-- `backend/tests/test_attachments_audit_schema.py` exercises the real
-  constraints in one rolled-back transaction: a valid attachment and a valid
-  audit entry, a failed sign-in with no actor and no entity id, and rejection of a
-  missing or dangling ticket, uploader, or actor, a blank or null file name or
-  storage name, a null content type, a negative size, a duplicate storage name, a
-  blank or null action or entity type, and the restrictive deletes. It also
-  asserts the three new indexes exist and that neither table has `updated_at`.
-- `backend/tests/test_migrations.py` now asserts `attachments` and `audit_logs`
-  exist after reaching head.
-- `docs/DATA_MODEL.md` gains a **D04 decisions** section and no longer lists the
-  attachment storage layout or the audit-log index strategy as undecided.
-- `README.md` reports the new head and the new models.
+- `backend/app/models/notification.py` and
+  `backend/app/models/system_setting.py`, both registered in
+  `backend/app/models/__init__.py`.
+- `backend/alembic/versions/20261014_d05_notify_settings.py` is the new head,
+  `down_revision = 20261014_d04_attachments_audit`, 28 characters. It creates both
+  tables **and seeds the single settings row** — the first migration in this
+  project that writes data rather than only schema.
+- `backend/tests/test_notifications_settings_schema.py` exercises the real
+  constraints in one rolled-back transaction, including the two things the row's
+  done-when asks for: read and dismissed persist **independently** on the same
+  notification, and an edited settings value persists. It also asserts the seeded
+  row carries the exact `REQUIREMENTS.md` defaults, that a second settings row is
+  impossible, that a settings row missing a priority key or with an empty type
+  array is rejected, and that neither table lets its ticket or recipient be
+  deleted.
+- `backend/tests/test_migrations.py` now asserts `notifications` and
+  `system_settings` exist after reaching head.
+- `docs/DATA_MODEL.md` gains a **D05 decisions** section and no longer lists
+  anything as deliberately undecided; `README.md` reports the new head and the
+  full model list.
 
 ## Decisions worth reviewing
 
-1. **Attachment storage layout.** Bytes live under `uploads/` at the repository
-   root (already excluded by `.gitignore`, and outside anything the app serves),
-   stored as `uploads/<first two characters of storage_name>/<storage_name>`.
-   `storage_name` is a server-generated UUID4 in hex plus an extension chosen
-   from the allowed types by MIME type; the client's file name is display-only.
-   The table stores no directory part, so moving the root invalidates nothing.
-2. `storage_name` is the one column the contract hides: the Attachment shape says
-   the storage path is never returned, so it exists in the table and must be
-   dropped from every response by T07.
-3. Attachment rows are write-once (no `updated_at`, no update or delete route).
-   `size_bytes >= 0` is the only size constraint, because the real limit is a
-   configurable setting and the API enforces it.
-4. **Audit-log index strategy**, the other F05 open question: `created_at` for the
-   newest-first listing and `(entity_type, entity_id)` for one record's history.
-   `actor_id` and `action` are unindexed by choice.
-5. `old_value`/`new_value` are `JSONB`. `action` and `entity_type` have no closed
-   set — G01 owns that vocabulary and the contract never fixes it.
-6. `entity_id` has no foreign key because it identifies whatever `entity_type`
-   names; `actor_id` does, and is nullable for a failed sign-in.
+1. **Settings is one row, read as a singleton**, not a key/value table: the
+   contract's Settings shape is a single object. `is_singleton` plus a unique
+   constraint makes a second row impossible while keeping the UUID primary key
+   convention.
+2. **The migration seeds that row**, with the SLA targets (Low 24/72, Medium
+   8/48, High 2/24, Critical 1/8), a 10 MiB size limit, and the four allowed MIME
+   types. Reference data, not demo data: T01 cannot compute a ticket's deadlines
+   without it. Demo users and tickets remain D08's job. If the team would rather
+   migrations never write rows, this is the decision to revisit.
+3. `sla_targets` is `JSONB` with a check constraint that all four priorities are
+   present as keys; the inner hours are the API's to validate.
+4. `allowed_attachment_types` is a native `text[]` (the contract's "array of MIME
+   type strings"), required to hold at least one entry.
+5. `notifications.type` is the closed set from the contract; a reassignment uses
+   `assignment`.
+6. `notifications` gets one composite index on `(recipient_id, created_at)`;
+   `ticket_id` is unindexed because no route lists notifications by ticket.
+7. `system_settings` is one of the few tables with `updated_at`, because
+   `PATCH /settings` edits it in place. Notifications have no `updated_at`: their
+   read and dismiss routes carry their own timestamps. Settings changes are
+   audited by G01, so there is no separate history table.
 
 ## Checks run
 
 On Kavin's machine, against the containerised PostgreSQL, in this order.
 
 - `docker compose ps` reports `itsm-helpdesk-db-1 ... Up (healthy)`.
-- `alembic upgrade head` applied D04 on top of D03 with no error.
-- `alembic current` reports `20261014_d04_attachments_audit (head)`.
+- `alembic upgrade head` applied D05 on top of D04 and ran the seed insert with no
+  error — including the `JSONB` and `text[]` values, which is the part that could
+  have failed silently.
+- `alembic current` reports `20261014_d05_notify_settings (head)`.
 - `alembic check` reports **No new upgrade operations detected**.
-- `cd backend && pytest -q` reports **9 passed, 1 warning in 36.70s**. The warning
-  is the pre-existing Starlette `TestClient` deprecation from F03/F04.
-- Two of D04's own test cases were wrong on the first run and were fixed rather
-  than deleted: an "invalid" row that was actually valid, and an empty
-  `storage_name` that nothing rejected, which is why the column gained a
-  not-blank check.
+- Reading the live database shows exactly one `system_settings` row with
+  `sla_targets` Low 24/72 … Critical 1/8, `max_attachment_bytes` 10485760, and
+  the four MIME types.
+- `cd backend && pytest -q` reports **11 passed, 1 warning in 42.05s**. The
+  warning is the pre-existing Starlette `TestClient` deprecation from F03/F04.
 - Practical note carried forward: the WSL2 VM stops about a minute after the last
   WSL command, which kills Docker mid-run and fails every database test with a
   connection timeout. Hold an attached client for the whole run
@@ -87,46 +95,51 @@ On Kavin's machine, against the containerised PostgreSQL, in this order.
 
 ## Open items carried forward
 
-1. **Article category**, still the one F06 item open. `docs/DATA_MODEL.md` and
-   checklist row D06 both require a category on articles; the contract's
-   `Article` shape omits it. Decide before D06 (owner Suhail, checklist target
-   20 October) and update the contract, `DATA_MODEL.md`, and tests in one commit.
-   Reusing `categories` is the cheapest option.
-2. Two F06 wording items for the D06/D07 doc touch: `GET /articles` implies
-   agents and admins see every draft while `GET /articles/{id}` returns a draft
-   only to its author agent or an admin; and `PATCH /articles/{id}`'s "Who"
-   column reads "Draft author or admin" while `REQUIREMENTS.md` says admins may
-   edit any article.
-3. No route changes a password — no admin reset and no self-service change. It
-   matches checklist row A06's wording, so it is not a defect, but it should be
-   stated as a v1 limitation before A06 is implemented.
-4. **Who inserts the first `system_settings` row.** Migrations stay schema-only,
-   so the SLA defaults and attachment limits in `REQUIREMENTS.md` need a home:
-   either D05's API reads with defaults, or D08 seeds the row. T01 cannot compute
-   a ticket's deadlines without it. D05 decides; the handoff records it either
-   way.
-5. The review trail: #7-#10 have no GitHub review. State that honestly in the
-   checklist, and use the open D05 pull request to resume reviewing.
+1. **Article category — this one blocks D06's own acceptance.** The authoritative
+   checklist says D06 is done when "Articles have title, body, category, author,
+   and published status", and `docs/DATA_MODEL.md` agrees, but the contract's
+   `Article` shape has no category. D06's owner must decide it, then change the
+   contract, `DATA_MODEL.md`, and tests in one commit. Because the contract
+   defines no article-category route, reusing `categories` is the cheapest
+   option. F06's row stays open until this is settled.
+2. Two F06 wording items for the D06 doc touch: `GET /articles` implies agents and
+   admins see every draft while `GET /articles/{id}` returns a draft only to its
+   author agent or an admin; and `PATCH /articles/{id}`'s "Who" column reads
+   "Draft author or admin" while `REQUIREMENTS.md` says admins may edit any
+   article.
+3. **No checklist row owns `GET /settings` and `PATCH /settings`.** The contract
+   defines both, D05 stores the row they read and write, but no row in the local
+   workbook is assigned to the settings API. Worth raising with the mentor rather
+   than quietly absorbing it into another row.
+4. No route changes a password — no admin reset and no self-service change. It
+   matches row A06's wording, so it is not a defect, but it should be stated as a
+   v1 limitation before A06 is implemented.
+5. The review trail: #7-#11 have no GitHub review. State that honestly in the
+   checklist, and use #12 to resume reviewing.
 6. **F05 acceptance gap, still open and owned by Kavin.** The checklist's F05
    done-when is "ER diagram and migrations cover every database entity in the
    architecture"; pull request #4 delivered only an empty baseline and no ER
-   diagram. The migration half now covers eight tables out of the ten the
-   architecture names; the ER diagram is still missing.
-7. The local-only checklist workbook is stale: F05 is "In progress", and D01-D04
-   and F06 are still "Not started". Update statuses and evidence after this pull
-   request merges, leaving F06 open until item 1 is decided.
-8. Targets have slipped: F06 was due 12 October, D02-D05 were due 13-14 October.
+   diagram. The migration half is now complete for all ten tables, so only the
+   diagram is outstanding — and it can now be drawn from real tables rather than
+   from the picture.
+7. The local-only checklist workbook is stale: F05 shows "In progress", and
+   D01-D05 and F06 show "Not started". Update the statuses and evidence links
+   after #12 merges, leaving F06 open until item 1 is decided.
+8. Targets have slipped: F06 was due 12 October and D02-D05 were due 13-14
+   October. Worth stating in the next mentor update.
 
 ## Exact next action
 
-Merge pull request #11 (D04) — Kavin's direction is that only the last row before
-Suhail's next owned row gets a review, and that is D05.
+**Suhail reviews and merges pull request #12.** The decisions above are the ones
+to push back on, especially item 2 in the decisions list (a migration that seeds
+a row).
 
-Then implement **D05 (Notifications and System Settings tables)** on branch
-`feat/D05-notifications-settings`: checklist owner Kavin, reviewer Suhail.
-D05 must decide the settings singleton question and item 4 above, and it owns the
-remaining F05 open item list. Its pull request is **left open for Suhail to
-review and merge** — do not self-merge it. After D05 merges, the next row is
-**D06 (Knowledge article model)**, whose checklist owner is Suhail, so the relay
-hands over there. Keep every revision id to 32 characters or fewer, and do not
-start D05 from an older remote state.
+He then becomes Active owner of **D06 (Add knowledge article model)** on branch
+`feat/D06-knowledge-articles`. D06's checklist done-when requires an article
+**category**, which the contract does not currently define, so open item 1 is his
+first decision and it must land in the contract, `DATA_MODEL.md`, and the tests
+together. Kavin reviews D06. Keep every revision id to 32 characters or fewer, and
+do not start D06 from an older remote state.
+
+Kavin still owes the F05 ER diagram (open item 6) and should complete it before
+or alongside the next review round.

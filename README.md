@@ -13,9 +13,10 @@ The implementation checklist and mentor update log are maintained separately.
 F03 and F04 are scaffolded: the React app, the FastAPI backend, and a local
 PostgreSQL container all start from the commands below. F05 adds the Alembic
 migration chain. D01 adds the `roles` and `users` tables, D02 adds
-`categories` and `tickets`, D03 adds `comments` and `ticket_history`, and D04
-adds `attachments` and `audit_logs`; later D-rows add the remaining tables, and
-A01/A02 adds `refresh_tokens`. Schema
+`categories` and `tickets`, D03 adds `comments` and `ticket_history`, D04 adds
+`attachments` and `audit_logs`, and D05 adds `notifications` and
+`system_settings` plus the seeded settings row; later D-rows add knowledge
+articles, and A01/A02 adds `refresh_tokens`. Schema
 decisions and the table-to-task map are in
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md). The only API route is still the health
 check.
@@ -91,7 +92,7 @@ Open http://localhost:5173.
 | Check | Command | Expected |
 | --- | --- | --- |
 | Database is running | `docker compose ps` | `... (healthy)` |
-| Migration chain is at head | `cd backend && alembic current` | `20261014_d04_attachments_audit (head)` |
+| Migration chain is at head | `cd backend && alembic current` | `20261014_d05_notify_settings (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
 | Backend tests | `cd backend && pytest -q` | All tests pass |
 | Frontend reaches the API | open http://localhost:5173 | `backend: ok` and `database: ok` |
@@ -109,8 +110,8 @@ backend/                FastAPI application
   app/core/config.py    settings, read from the repository-root .env
   app/core/db.py        database connectivity check
   app/models/           SQLAlchemy Base, Roles, Users, Categories, Tickets,
-                        Comments, Ticket History, Attachments, Audit Logs, and
-                        the naming convention
+                        Comments, Ticket History, Attachments, Audit Logs,
+                        Notifications, System Settings, and the naming convention
   app/api/v1/           versioned routes (health only so far)
   alembic/              migration environment and revisions
   alembic.ini           Alembic config; the database URL lives in .env instead
