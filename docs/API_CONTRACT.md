@@ -12,9 +12,8 @@ fields, response fields, and error codes, and that both people agree on them.
 The F06 additions below were reviewed and approved by Kavin in pull request
 [#6](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/6) on 14 October 2026 and
 are the agreed request/response/error shapes. They are still not implemented API
-behavior. The `Article` category is the one shape left open; see the F06 review
-outcome at the end of this file. Checklist row F06 stays open until that is
-decided.
+behavior. D06 resolves the `Article` category gap by reusing `categories`, as
+recorded at the end of this file.
 
 Base path: `/api/v1`. JSON is used except for multipart file upload and CSV/PDF
 downloads. IDs are UUID strings. Timestamps are ISO 8601 UTC strings ending in
@@ -49,7 +48,7 @@ must contain at least one of them. Path IDs are UUIDs. `created_at`,
 | `TicketHistory` | `id`, `ticket_id`, `actor_id`, `field` (status, assignee_id, category_id, or priority), `old_value` (nullable), `new_value` (nullable), `reason` (nullable), `created_at`. One row per changed field. |
 | `Comment` | `id`, `ticket_id`, `author_id`, `body`, `created_at`. |
 | `Attachment` | `id`, `ticket_id`, `uploader_id`, `file_name`, `content_type`, `size_bytes`, `created_at`. Never include the storage path. |
-| `Article` | `id`, `title`, `body`, `author_id`, `is_published`, `created_at`, `updated_at`. |
+| `Article` | `id`, `title`, `body`, `category_id`, `author_id`, `is_published`, `created_at`, `updated_at`. |
 | `Notification` | `id`, `recipient_id`, `ticket_id` (nullable), `type`, `message`, `read_at` (nullable), `dismissed_at` (nullable), `created_at`. |
 | `Settings` | `sla_targets` (one `first_response_hours` and `resolution_hours` pair for each Low, Medium, High, Critical priority), `max_attachment_bytes`, `allowed_attachment_types` (array of MIME type strings). |
 | `AuditLog` | `id`, `actor_id` (nullable for failed login), `action`, `entity_type`, `entity_id` (nullable), `old_value` (nullable JSON), `new_value` (nullable JSON), `created_at`. A failed login stores only `attempted_email` in `new_value`, never the password. |
@@ -120,10 +119,10 @@ Ticket response fields include `id`, `title`, `description`, `category_id`,
 | `GET /tickets/{id}/attachments` | Ticket owner, agent, admin | Path `id`; query `limit`, `offset`; no body | `200` `Page<Attachment>` | `401`, `404` missing or inaccessible ticket, `422` |
 | `POST /tickets/{id}/attachments` | Ticket owner, assigned agent, admin | Path `id`; multipart `file` (PDF, PNG, JPEG, or TXT; at most current size limit) | `201` `Attachment` metadata | `400` disallowed type or excess size; `401`, `403`, `404`, `422` missing file/invalid ID |
 | `GET /tickets/{id}/attachments/{attachment_id}` | Ticket owner, agent, admin | Path `id`, `attachment_id`; no body | `200` file bytes with `Content-Type` and `Content-Disposition` filename; never a storage path | `401`, `404` missing/inaccessible ticket or attachment, `422` |
-| `GET /articles` | Logged-in user | Query `limit`, `offset`, optional `q`; no body. Employees see published only | `200` `Page<Article>` | `401`, `422` |
-| `GET /articles/{id}` | Published: logged-in user; draft: author agent/admin | Path `id`; no body | `200` `Article` | `401`, `404` missing or inaccessible, `422` |
-| `POST /articles` | Agent or admin | JSON `title`, `body` | `201` draft `Article` with `is_published: false` | `401`, `403`; `422` blank content or invalid fields |
-| `PATCH /articles/{id}` | Draft author or admin | Path `id`; JSON nonempty subset of `title`, `body`. Agent may edit own draft only | `200` updated `Article` | `401`, `403`, `404`; `422` blank content or invalid fields |
+| `GET /articles` | Logged-in user | Query `limit`, `offset`, optional `q`, optional `category_id`; no body. Employees see published only; agents see published and own drafts; admins see all | `200` `Page<Article>` | `401`, `422` |
+| `GET /articles/{id}` | Published: logged-in user; draft: author agent or admin | Path `id`; no body | `200` `Article` | `401`, `404` missing or inaccessible, `422` |
+| `POST /articles` | Agent or admin | JSON `title`, `body`, `category_id` (active category) | `201` draft `Article` with `is_published: false` | `400` inactive category; `401`, `403`, `404` category missing; `422` blank content or invalid fields |
+| `PATCH /articles/{id}` | Own draft: author agent; any article: admin | Path `id`; JSON nonempty subset of `title`, `body`, `category_id` (active category if changed) | `200` updated `Article` | `400` inactive category; `401`, `403`, `404` article or category missing; `422` blank content or invalid fields |
 | `POST /articles/{id}/publish` | Admin | Path `id`; JSON `published` (boolean) | `200` updated `Article` | `401`, `403`, `404`, `422` |
 
 Comments are public to everyone who can view the ticket; there are no private
@@ -202,10 +201,10 @@ The `User` shape was checked against the merged D01 schema: this contract
 exposes the role *name*, and the three names above match D01's
 `ck_roles_name_allowed` constraint on `roles.name`.
 
-Still open, and the reason checklist row F06 is not marked done yet: the
-`Article` shape above omits a category, but `DATA_MODEL.md` and checklist row D06
-both require an article category. Decide before D06, update this file and
-`DATA_MODEL.md` together, and note that the contract defines no separate
-article-category route or field, so reusing `categories` is the cheapest option.
+D06 resolved the remaining F06 article-category mismatch: `Article` has a
+required `category_id` referencing the same admin-managed `categories` table as
+tickets. There is no separate article-category route. The existing category
+list supplies choices; only active categories can be selected on create or
+recategorization, while deactivation leaves existing articles valid.
 
 Later implementation tests and FastAPI's `/docs` must match these shapes.

@@ -15,8 +15,8 @@ PostgreSQL container all start from the commands below. F05 adds the Alembic
 migration chain. D01 adds the `roles` and `users` tables, D02 adds
 `categories` and `tickets`, D03 adds `comments` and `ticket_history`, D04 adds
 `attachments` and `audit_logs`, and D05 adds `notifications` and
-`system_settings` plus the seeded settings row; later D-rows add knowledge
-articles, and A01/A02 adds `refresh_tokens`. Schema
+`system_settings` plus the seeded settings row. D06 adds `knowledge_articles`
+on a task branch; A01/A02 later adds `refresh_tokens`. Schema
 decisions and the table-to-task map are in
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md). The only API route is still the health
 check.
