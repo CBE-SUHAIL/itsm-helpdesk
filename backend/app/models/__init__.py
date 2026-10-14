@@ -42,3 +42,5 @@ from app.models.comment import Comment  # noqa: E402, F401
 from app.models.ticket_history import TicketHistory  # noqa: E402, F401
 from app.models.attachment import Attachment  # noqa: E402, F401
 from app.models.audit_log import AuditLog  # noqa: E402, F401
+from app.models.notification import Notification  # noqa: E402, F401
+from app.models.system_setting import SystemSetting  # noqa: E402, F401
