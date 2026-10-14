@@ -1,80 +1,89 @@
 # Current handoff
 
 Updated: 14 October 2026
-Checklist task: D06 (Knowledge Article model)
-Branch: `feat/D06-knowledge-articles`, based on `main` at `989c58b`
-Pushed D06 commit: `370333f`; pull request:
-[#13](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/13) into `main`
-Active owner: **Kavin for review**. He has been requested as reviewer. Suhail
-handles any requested changes before merge. Do not start another implementation
-row from this branch.
+Checklist task: F05 (Define database schema and migrations) — its outstanding
+acceptance item, the ER diagram
+Branch: `docs/F05-er-diagram`, based on `main` at `ec5c63a`
+Pull request: *link added in the next commit*
+Active owner: **Kavin** on this branch. Incoming owner: **Suhail** reviews and
+merges, then takes the next row.
 
 ## Where the project stands
 
-F01-F04 and D01-D05 are on `main`. F05's migration mechanism is on `main`, but
-its ER diagram is still missing and remains Kavin's open acceptance item. F06's
-API shapes were reviewed in pull request #6. D05 pull request
-[#12](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/12) was merged as
-`989c58b` on 14 October before the Suhail review requested in the prior
-handoff; **do not record #12 as reviewed**. I checked the merged model, migration,
-and database tests afterward, with no blocking issue found. D02-D04 also lack
-a recorded GitHub review. Resume the review step on D06.
+F01-F04 and D01-D06 are on `main`. D06 pull request
+[#13](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/13) was **reviewed and
+approved by Kavin on GitHub** and merged as `ec5c63a`, which is the first
+recorded GitHub review approval since #6; the F06 article-category gap is closed
+with it. D05 (#12) and D02-D04 were merged without a recorded GitHub review and
+must still be described that way rather than as reviewed.
 
-The database now has all ten tables in the architecture image plus Alembic's
-version table. D06 adds the eleventh, `knowledge_articles`, required by the
-knowledge-base UI.
+F05's migration mechanism has been on `main` since #4, but its **ER diagram was
+never drawn**, which is why the row is still In progress. That is what this
+branch does. The database now holds all eleven tables: the ten in the mentor
+workbook's database layer plus `knowledge_articles` from D06.
 
-## D06 change
+## F05 change
 
-- Added `KnowledgeArticle` and migration `20261014_d06_knowledge_articles`,
-  whose 31-character revision ID fits Alembic's 32-character version column.
-- Each article has nonblank title and body, a required author, a required
-  category, published status defaulting to false, and created/updated times.
-  Category and author foreign keys restrict deletion. Indexes serve category
-  filtering and an agent's own-draft listing.
-- Reused the existing `categories` table rather than creating a second category
-  system. `category_id` is now present in the Article response, create, patch,
-  and optional list filter in `docs/API_CONTRACT.md`. The API must allow only
-  active categories when creating or recategorizing; deactivating one leaves
-  old articles readable. This is an API rule, not a database constraint.
-- Aligned article visibility and editing across `REQUIREMENTS.md` and the API
-  contract: employees see published only; agents see published plus own drafts
-  and may edit own drafts; admins see and may edit any article. Only admins
-  publish/unpublish. No article route exists yet: this row owns the schema only.
-- Added a real-PostgreSQL constraint test and made migration-chain tests require
-  the new table. Updated `DATA_MODEL.md` and `README.md`.
+- `docs/DATA_MODEL.md` gains an **ER diagram** section: a Mermaid `erDiagram`
+  of all eleven tables with every column, its type, and its PK/FK/UK marker, and
+  all fifteen restrictive foreign keys as relationship lines. Nullable pointers
+  (`tickets.assignee_id`, `audit_logs.actor_id`, `notifications.ticket_id`) are
+  drawn `|o`, so the diagram states which links are optional rather than leaving
+  it to prose.
+- `alembic_version` is deliberately not drawn; it is Alembic's table, not part of
+  the model. `refresh_tokens` must be added to the diagram in the same commit
+  that A01/A02 adds it.
+- `backend/tests/test_er_diagram.py` is new. It parses that block and compares it
+  with `Base.metadata`: every table, every column, every PK/FK/UK marker, every
+  foreign key, and the nullable/required shape of each link. It needs **no
+  database**, so unlike the rest of the suite it still runs with Postgres down.
 
 ## Checks
 
-On Suhail's Mac, using the existing local Postgres container on port 5433:
-
-- `backend/.venv/bin/pytest -q backend/tests`: **12 passed, 1 warning**. The
-  warning is the pre-existing Starlette `TestClient` deprecation.
-- The suite upgrades to the new head, checks model/migration parity, and rolls
-  back its changes. It tests category/author foreign keys, nonblank content,
-  draft default, publish-state persistence, and restrictive delete behavior.
-- `compileall` and `git diff --check` passed.
+- `pytest -q tests/test_er_diagram.py`: **4 passed**.
+- The guard was verified in both directions, not just green: deleting a column,
+  deleting a relationship line, and flipping a nullable `|o` to `||` each made
+  the relevant test fail, and the file was restored afterwards.
+- The diagram was parsed with **Mermaid's own parser** (mermaid 11 + jsdom in a
+  scratch directory): `PARSE OK`, `diagramType: "er"`, 11 entities, 15
+  relationships. So it renders on GitHub rather than only looking plausible.
+- **The rest of the suite could not be run on this machine.** Postgres is
+  unreachable from Windows here: the container is up and healthy inside WSL
+  (answering on 127.0.0.1:5432 there), but Windows sees no listener on 5432 and
+  psycopg times out. All 9 database-backed tests fail identically on `main`
+  before this branch, so this is a local environment fault, not a code change.
+  See open item 1.
+- The local database is still at revision `20261014_d05_notify_settings`; run
+  `alembic upgrade head` to reach D06 before running the schema tests.
 
 ## Open items
 
-1. Kavin reviews D06 before merge. Check especially whether sharing ticket
-   categories with articles is acceptable for v1, and that the API contract's
-   `400` on inactive category fits implementation plans. The previous F06
-   article-category gap is resolved by D06's change, subject to that review.
-2. F05 still needs an ER diagram showing the implemented tables and relations;
-   Kavin owns this outstanding acceptance item.
-3. No checklist row owns `GET /settings` and `PATCH /settings`; ask the mentor
+1. **Windows cannot reach the project's Postgres.** `.wslconfig` sets
+   `networkingMode=mirrored` (for the separate Kubernetes assignment), which
+   stops Docker's published port being mirrored to Windows. Fixing it means
+   editing that personal file and `wsl --shutdown`, or running the backend from
+   inside WSL; neither was done unasked. Everything DB-backed is unverified on
+   this machine until it is resolved.
+2. No checklist row owns `GET /settings` and `PATCH /settings`; ask the mentor
    which task should implement them rather than silently expanding D05.
-4. No route changes or resets a password in v1; make this explicit before A06.
-5. The separately maintained local checklist workbook still has stale statuses
-   and needs evidence links after review/merge. Do not mark unreviewed PRs as
-   reviewed.
+3. No route changes or resets a password in v1; make this explicit before A06.
+4. The separately maintained local checklist workbook still has stale statuses
+   (D02-D05 still read "Not started") and needs evidence links. Do not mark
+   unreviewed pull requests as reviewed.
+5. The ER-diagram guard only covers the diagram. A later row that adds a table
+   will fail `test_er_diagram.py` until the diagram is redrawn, which is the
+   intent, so redraw rather than relax the test.
 
 ## Exact next action
 
-**Kavin reviews PR #13**. He should leave a GitHub review (or actionable
-comments), then Suhail incorporates changes if needed and the PR is merged.
-Both pull `main` before the next task.
+**Suhail reviews this branch.** Check that the diagram agrees with the models he
+reviewed, that drawing eleven tables rather than the workbook's ten is the right
+reading of F05's done-when, and whether a `docs/` branch is the right place for a
+tooling test. Then merge, pull `main`, and start **D07 (models, relationships, and
+session handling)**, which is Kavin's next row and which the diagram's
+relationship section now describes. Resolve open item 1 first: D07's acceptance
+depends on transactions committing and rolling back against a live database.
+
 The incoming coder reads this file, `AGENTS.md`, `WORKFLOW.md`,
 `REQUIREMENTS.md`, and `API_CONTRACT.md`, then checks branch, status, commit,
 and remote before editing. Do not code from a stale checkout.
