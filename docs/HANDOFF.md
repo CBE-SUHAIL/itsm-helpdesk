@@ -3,9 +3,11 @@
 Updated: 14 October 2026
 Checklist task: D06 (Knowledge Article model)
 Branch: `feat/D06-knowledge-articles`, based on `main` at `989c58b`
-Active owner: **Suhail** until the D06 branch is pushed; then **Kavin** reviews
-the pull request before it is merged. Do not start another implementation row
-from this branch.
+Pushed D06 commit: `370333f`; pull request:
+[#13](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/13) into `main`
+Active owner: **Kavin for review**. He has been requested as reviewer. Suhail
+handles any requested changes before merge. Do not start another implementation
+row from this branch.
 
 ## Where the project stands
 
@@ -70,9 +72,9 @@ On Suhail's Mac, using the existing local Postgres container on port 5433:
 
 ## Exact next action
 
-After Suhail pushes this branch and opens its PR, **Kavin reviews D06**. He
-should leave a GitHub review (or actionable comments), then Suhail incorporates
-changes if needed and the PR is merged. Both pull `main` before the next task.
+**Kavin reviews PR #13**. He should leave a GitHub review (or actionable
+comments), then Suhail incorporates changes if needed and the PR is merged.
+Both pull `main` before the next task.
 The incoming coder reads this file, `AGENTS.md`, `WORKFLOW.md`,
 `REQUIREMENTS.md`, and `API_CONTRACT.md`, then checks branch, status, commit,
 and remote before editing. Do not code from a stale checkout.
