@@ -16,12 +16,20 @@ merged as `ec5c63a`, the first recorded GitHub review approval since #6. D05
 (#12) and D02-D04 were merged without a recorded GitHub review and must still be
 described that way.
 
-**A second pull request is open at the same time:**
+**F05's ER diagram landed while this branch was open.**
 [#14](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/14), `docs/F05-er-diagram`,
-which closes F05's outstanding ER diagram. Both #14 and this branch edit
-`docs/DATA_MODEL.md` and this file, so whichever merges second will conflict.
-Resolve it by keeping both sections — the F05 ER diagram and the D07 decisions —
-rather than choosing one.
+was merged as `2be6600` on 14 October at Kavin's direction with **no recorded
+GitHub review** (`gh pr view 14` shows an empty review list), so it joins #12 and
+D02-D04: do not describe it as reviewed. `main` passes 16 tests at that commit —
+the 12 that were already there plus the 4 ER-diagram guards — and F05's
+remaining acceptance item is met.
+
+Because of that, `docs/DATA_MODEL.md` and this file now conflict with `main`.
+Main carries the ER diagram section and this branch carries the D07 decisions
+section, so resolve by keeping **both**, then confirm
+`pytest -q backend/tests` reports **22 passed**. That combination was checked
+before this branch was pushed: F05's diagram guards pass unchanged against D07's
+models, because relationships add no column and `alembic check` reports no drift.
 
 ## D07 change
 
@@ -91,8 +99,8 @@ and `-1` disables auto-shutdown entirely. The dev database is at head
 
 ## Open items
 
-1. Pull request #14 (F05's ER diagram) is still open and awaiting review. See the
-   merge-conflict note above.
+1. This branch conflicts with `main`, which now carries F05's ER diagram. Resolve
+   by keeping both sections, as described above, rather than dropping either.
 2. No checklist row owns `GET /settings` and `PATCH /settings`; ask the mentor
    which task should implement them rather than silently expanding D05.
 3. No route changes or resets a password in v1; make this explicit before A06.
