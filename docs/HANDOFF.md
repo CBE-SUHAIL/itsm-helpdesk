@@ -41,39 +41,54 @@ workbook's database layer plus `knowledge_articles` from D06.
 
 ## Checks
 
-- `pytest -q tests/test_er_diagram.py`: **4 passed**.
+- `pytest -q backend/tests`: **16 passed, 1 warning**. The warning is the
+  pre-existing Starlette `TestClient` deprecation. This is the first full-suite
+  run on Kavin's machine, so it also re-verifies D06's schema and migration tests
+  after the merge.
 - The guard was verified in both directions, not just green: deleting a column,
   deleting a relationship line, and flipping a nullable `|o` to `||` each made
   the relevant test fail, and the file was restored afterwards.
 - The diagram was parsed with **Mermaid's own parser** (mermaid 11 + jsdom in a
   scratch directory): `PARSE OK`, `diagramType: "er"`, 11 entities, 15
   relationships. So it renders on GitHub rather than only looking plausible.
-- **The rest of the suite could not be run on this machine.** Postgres is
-  unreachable from Windows here: the container is up and healthy inside WSL
-  (answering on 127.0.0.1:5432 there), but Windows sees no listener on 5432 and
-  psycopg times out. All 9 database-backed tests fail identically on `main`
-  before this branch, so this is a local environment fault, not a code change.
-  See open item 1.
-- The local database is still at revision `20261014_d05_notify_settings`; run
-  `alembic upgrade head` to reach D06 before running the schema tests.
+- The local database was upgraded from D05 to head
+  (`20261014_d06_knowledge_articles`).
+- `git diff --check` and `compileall` passed.
+
+### Making the database reachable, recorded because it cost an afternoon
+
+The suite first failed on this machine wholesale, with psycopg connection
+timeouts on every database-backed test. The cause was not the schema and not this
+branch. `.wslconfig` sets `networkingMode=mirrored`, and WSL shuts an idle distro
+(or VM) down after `instanceIdleTimeout`, whose default is **15 seconds**. With no
+interactive WSL session open, the distro stopped between test files, so
+`localhost:5432` stopped answering part-way through a run. That is also why a raw
+TCP connect could succeed while the Postgres handshake timed out: the listener
+disappeared mid-conversation.
+
+`[wsl2] vmIdleTimeout` does **not** help: the WSL documentation restricts it to
+`networkingMode=NAT`. The working setting is `[general] instanceIdleTimeout`.
+`~/.wslconfig` now carries `instanceIdleTimeout=43200000` (12 hours), and WSL was
+restarted with `wsl --shutdown`. The previous file is at
+`~/.wslconfig.backup-20261014-234804`; `-1` disables auto-shutdown entirely if a
+12-hour window is not wanted. Verify with `wsl -l -v` showing `Running` and
+`pytest -q backend/tests` passing.
 
 ## Open items
 
-1. **Windows cannot reach the project's Postgres.** `.wslconfig` sets
-   `networkingMode=mirrored` (for the separate Kubernetes assignment), which
-   stops Docker's published port being mirrored to Windows. Fixing it means
-   editing that personal file and `wsl --shutdown`, or running the backend from
-   inside WSL; neither was done unasked. Everything DB-backed is unverified on
-   this machine until it is resolved.
-2. No checklist row owns `GET /settings` and `PATCH /settings`; ask the mentor
+1. No checklist row owns `GET /settings` and `PATCH /settings`; ask the mentor
    which task should implement them rather than silently expanding D05.
-3. No route changes or resets a password in v1; make this explicit before A06.
-4. The separately maintained local checklist workbook still has stale statuses
+2. No route changes or resets a password in v1; make this explicit before A06.
+3. The separately maintained local checklist workbook still has stale statuses
    (D02-D05 still read "Not started") and needs evidence links. Do not mark
    unreviewed pull requests as reviewed.
-5. The ER-diagram guard only covers the diagram. A later row that adds a table
+4. The ER-diagram guard only covers the diagram. A later row that adds a table
    will fail `test_er_diagram.py` until the diagram is redrawn, which is the
    intent, so redraw rather than relax the test.
+5. `instanceIdleTimeout` keeps the WSL VM resident for 12 hours. With
+   `autoMemoryReclaim=disabled` in the same file, that holds memory the VM has
+   claimed until it stops. Use `wsl --shutdown` when finished for the day if that
+   matters.
 
 ## Exact next action
 
@@ -82,8 +97,9 @@ reviewed, that drawing eleven tables rather than the workbook's ten is the right
 reading of F05's done-when, and whether a `docs/` branch is the right place for a
 tooling test. Then merge, pull `main`, and start **D07 (models, relationships, and
 session handling)**, which is Kavin's next row and which the diagram's
-relationship section now describes. Resolve open item 1 first: D07's acceptance
-depends on transactions committing and rolling back against a live database.
+relationship section now describes. The database is reachable again, so D07's
+acceptance, transactions committing and rolling back against a live database, is
+testable on this machine.
 
 The incoming coder reads this file, `AGENTS.md`, `WORKFLOW.md`,
 `REQUIREMENTS.md`, and `API_CONTRACT.md`, then checks branch, status, commit,
