@@ -6,13 +6,18 @@ the foreign key on tickets is restrictive: a category in use cannot be removed.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.knowledge_article import KnowledgeArticle
+    from app.models.ticket import Ticket
 from app.models.role import utc_now
 
 
@@ -36,4 +41,11 @@ class Category(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    # D07. Articles reuse this table, so a category that is deactivated rather
+    # than deleted keeps both its tickets and its articles attributable.
+    tickets: Mapped[list["Ticket"]] = relationship("Ticket", back_populates="category")
+    knowledge_articles: Mapped[list["KnowledgeArticle"]] = relationship(
+        "KnowledgeArticle", back_populates="category"
     )

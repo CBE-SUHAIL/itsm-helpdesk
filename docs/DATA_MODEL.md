@@ -27,9 +27,10 @@ F05 owns the migration **mechanism**. The baseline revision
   them once a table exists costs a migration per rename.
 
 The tables and their minimal ORM models arrive together with D01-D06, and
-`refresh_tokens` with A01/A02. D07 completes shared relationships and session
-handling. Keeping each model beside its migration lets
-`test_models_match_the_database` detect drift from D01 onward.
+`refresh_tokens` with A01/A02. D07 adds no table: it wires the models to each
+other and adds the session factory and transaction boundary. Keeping each model
+beside its migration lets `test_models_match_the_database` detect drift from D01
+onward.
 
 ## Naming conventions
 
@@ -138,8 +139,8 @@ listed so a D-row does not have to rediscover them:
 
 ## Not yet decided here
 
-D01-D05 have all landed, and D06 settles the article-category shape below.
-Shared relationships and session handling belong to D07; `refresh_tokens`
+D01-D06 have all landed, and D06 settles the article-category shape below. D07
+settles shared relationships and session handling, also below. `refresh_tokens`
 arrives with A01/A02.
 
 ## D01 decisions
@@ -310,3 +311,46 @@ arrives with A01/A02.
 - Indexes on `category_id` and `author_id` support category filtering and own
   draft lookup. The published flag is deliberately not indexed by itself: it
   has only two values and the initial database is small.
+
+## D07 decisions
+
+D07 adds no table and no column: it is the Python side of the data access layer
+the architecture picture names, and `alembic check` still reports no drift after
+it. Nothing here changes the schema, so nothing here needs a migration.
+
+- **Every foreign key has a relationship, and both directions are navigable.**
+  Each of the fifteen keys gets a `relationship()` on the child and a
+  `back_populates` collection on the parent, so a route reads
+  `ticket.category.name` instead of hand-writing a join. The two ambiguous links
+  are `tickets.creator_id` and `tickets.assignee_id`, which both point at
+  `users`; each side names its foreign key explicitly rather than leaving
+  SQLAlchemy to guess. The reverse collections are named for the role they play
+  — `tickets_created` and `tickets_assigned`, `ticket_history_entries` — because
+  `User.tickets` twice over would say nothing about which link it was.
+- **Deleting a related row is a database question, not an ORM one.** No
+  relationship sets `cascade="all, delete"`, so a `session.delete(user)` cannot
+  quietly take tickets, history, or audit rows with it; the restrictive foreign
+  keys raise instead. This is what "nothing is hard-deleted" means once an ORM is
+  in front of the tables.
+- **`autoflush=False`.** A query never writes a half-built object as a side
+  effect, so a request that fails before committing cannot leave a row that
+  another query flushed into existence.
+- **`expire_on_commit=False`.** After a commit the object keeps its values, so a
+  route can commit and serialise what it just wrote without a refresh round trip.
+- **The request is one unit of work, and the caller commits it.**
+  `API_CONTRACT.md` requires a ticket change to update the ticket and append its
+  history, audit, and notification rows "together or roll back together", which
+  is one transaction per request. `app.core.db` therefore owns the failure path,
+  not the commit: `get_db` rolls back if the route raises and always closes, and
+  `session_scope` is the same contract for scripts and tests, committing on
+  success and rolling back on error.
+- **Lazy loading is the default.** No relationship sets `lazy="joined"` or
+  `selectin`. List routes are T01's and later, and eager-loading fifteen
+  collections before those routes exist would guess at their query shapes; a
+  route that needs to avoid N+1 can say so where it is written.
+- `backend/tests/test_relationships_and_sessions.py` holds the line. One test
+  needs no database and fails if a foreign key has no relationship, if a
+  `back_populates` names something that does not exist, or if a relationship
+  appears that no foreign key justifies. The rest run real PostgreSQL and prove a
+  relationship loads from the database, that a commit is visible to a later
+  session, and that a rollback leaves nothing behind.

@@ -1,13 +1,18 @@
 """Knowledge-base articles, stored as drafts until an admin publishes them."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.category import Category
+    from app.models.user import User
 from app.models.role import utc_now
 
 
@@ -37,4 +42,11 @@ class KnowledgeArticle(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    category: Mapped["Category"] = relationship(
+        "Category", back_populates="knowledge_articles"
+    )
+    author: Mapped["User"] = relationship(
+        "User", back_populates="knowledge_articles"
     )

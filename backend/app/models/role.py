@@ -1,13 +1,17 @@
 """The three fixed v1 roles; permission rules are enforced by A03."""
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 def utc_now() -> datetime:
@@ -33,3 +37,7 @@ class Role(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
     )
+
+    # D07. One role is held by many users. The permissions a role implies are
+    # A03's business rules in backend code, not columns here.
+    users: Mapped[list["User"]] = relationship("User", back_populates="role")
