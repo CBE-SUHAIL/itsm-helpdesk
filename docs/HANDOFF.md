@@ -4,7 +4,8 @@ Updated: 14 October 2026
 Checklist task: F05 (Define database schema and migrations) — its outstanding
 acceptance item, the ER diagram
 Branch: `docs/F05-er-diagram`, based on `main` at `ec5c63a`
-Pull request: *link added in the next commit*
+Pull request: [#14](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/14) into
+`main`, with Suhail requested as reviewer
 Active owner: **Kavin** on this branch. Incoming owner: **Suhail** reviews and
 merges, then takes the next row.
 
