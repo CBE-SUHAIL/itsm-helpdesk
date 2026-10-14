@@ -3,7 +3,8 @@
 Updated: 14 October 2026
 Checklist task: D07 (Models, relationships, and session handling)
 Branch: `feat/D07-relationships-session`, based on `main` at `ec5c63a`
-Pull request: *link added in the next commit*
+Pull request: [#15](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/15) into
+`main`, with Suhail requested as reviewer
 Active owner: **Kavin** on this branch. Incoming owner: **Suhail** reviews and
 merges, then takes D08.
 
