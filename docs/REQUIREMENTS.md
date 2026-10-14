@@ -115,6 +115,10 @@ app is optional in v1, because S02's own done-when asks only for read.
 
 - Knowledge articles: agents can create/edit drafts; admins can publish,
   unpublish, and edit any article. Employees search/read published articles.
+  Every article uses one existing category. Agents see published articles and
+  their own drafts; admins see all drafts and published articles. Only active
+  categories may be chosen for a new article or recategorization; deactivating
+  a category leaves existing articles intact and readable.
   The architecture picture shows the UI but not its API/table; both are needed.
 - Attachments: authorized users can upload/download PDF, PNG, JPEG, or TXT up
   to 10 MB per file. Store bytes in a local directory outside the public web

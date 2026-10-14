@@ -1,7 +1,7 @@
 # Data model
 
 Status: opened by F05 (database schema and migrations), 9 October 2026; D01
-landed 10 October and D02 landed 14 October 2026.
+landed 10 October and D02-D05 landed 14 October 2026. D06 is in progress.
 
 [REQUIREMENTS.md](REQUIREMENTS.md) says what the system must do and
 [API_CONTRACT.md](API_CONTRACT.md) says what the API exchanges. Neither decides
@@ -129,7 +129,7 @@ listed so a D-row does not have to rediscover them:
   server-side and a client-supplied file name is never used to build a path.
 - `knowledge_articles`: title, body, category, author, and a published flag.
   Drafts are visible to their author agent and to admins; employees see
-  published only.
+  published only. Articles reuse the `categories` table used by tickets.
 - `system_settings`: SLA targets per priority, attachment size limit, and
   allowed file types. One row only, seeded by D05 with the defaults in
   `REQUIREMENTS.md`.
@@ -138,11 +138,9 @@ listed so a D-row does not have to rediscover them:
 
 ## Not yet decided here
 
-D01-D05 have all landed and recorded their decisions below, so nothing in this
-file is left deliberately open at the time of writing. What remains undecided
-here belongs to rows that have not run yet: the knowledge-article shape (D06,
-including whether an article has a category) and the shared relationships and
-session handling (D07). `refresh_tokens` arrives with A01/A02.
+D01-D05 have all landed, and D06 settles the article-category shape below.
+Shared relationships and session handling belong to D07; `refresh_tokens`
+arrives with A01/A02.
 
 ## D01 decisions
 
@@ -294,3 +292,21 @@ session handling (D07). `refresh_tokens` arrives with A01/A02.
   routes, which have their own timestamps, so it has no `updated_at`.
 - Settings changes are audited by G01, in the same transaction as the change, so
   no separate history table is needed here.
+
+## D06 decisions
+
+- `knowledge_articles.category_id` is a required foreign key to the existing
+  `categories` table, not a new article-only category table. The checklist
+  requires a category, and the contract has no route for managing another kind.
+  The foreign key restricts deletion; a deactivated category may remain on an
+  existing article. The article API accepts only active categories on creation
+  or recategorization. This is an API rule because active state can change.
+- `author_id` is a required, restrictive foreign key to `users.id`; inactive
+  authors still retain attribution. The API enforces which roles may author or
+  edit; a foreign key cannot encode role permissions.
+- `title` is `varchar(200)` and `body` is `text`, both required and nonblank.
+  `is_published` defaults to false in the model. Only an admin may change it
+  through the publish route. `created_at` and `updated_at` are UTC timestamps.
+- Indexes on `category_id` and `author_id` support category filtering and own
+  draft lookup. The published flag is deliberately not indexed by itself: it
+  has only two values and the initial database is small.
