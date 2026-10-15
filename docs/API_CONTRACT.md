@@ -1,10 +1,13 @@
 # API contract (F02 baseline; F06 shapes confirmed 14 October 2026)
 
 This is the shared agreement between the React app and FastAPI backend. A01–A07
-implement the authentication and user routes below; other routes remain planned.
-If the team changes a route or rule, update this file,
-the requirements, and affected tests in the same commit. FastAPI's generated
-OpenAPI page at `/docs` must match the implemented contract.
+implement the authentication and user routes below; T01–T04 and T06 implement
+the ticket routes (create, read, assignment, status, priority, category,
+comments, and history). Categories, attachments, articles, notifications,
+reports, settings, and audit-log reading remain planned. If the team changes a
+route or rule, update this file, the requirements, and affected tests in the
+same commit. FastAPI's generated OpenAPI page at `/docs` must match the
+implemented contract.
 
 Pull request #1 accepted this baseline and the four review decisions recorded in
 [REQUIREMENTS.md](REQUIREMENTS.md) under "F02 review decisions". Checklist row F06
@@ -12,9 +15,9 @@ keeps the narrower job of confirming that every route below names its request
 fields, response fields, and error codes, and that both people agree on them.
 The F06 additions below were reviewed and approved by Kavin in pull request
 [#6](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/6) on 14 October 2026 and
-are the agreed request/response/error shapes. The auth and user portion is now
-implemented; the remaining shapes are planned. D06 resolves the `Article`
-category gap by reusing `categories`, as
+are the agreed request/response/error shapes. The auth, user, and ticket-core
+portions are now implemented; the remaining shapes are planned. D06 resolves the
+`Article` category gap by reusing `categories`, as
 recorded at the end of this file.
 
 Base path: `/api/v1`. JSON is used except for multipart file upload and CSV/PDF
