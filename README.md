@@ -15,8 +15,8 @@ PostgreSQL container all start from the commands below. F05 adds the Alembic
 migration chain. D01 adds the `roles` and `users` tables, D02 adds
 `categories` and `tickets`, D03 adds `comments` and `ticket_history`, D04 adds
 `attachments` and `audit_logs`, and D05 adds `notifications` and
-`system_settings` plus the seeded settings row. D06 adds `knowledge_articles`
-on a task branch; A01/A02 later adds `refresh_tokens`. Schema
+`system_settings` plus the seeded settings row. D06 adds `knowledge_articles`;
+A01/A02 later adds `refresh_tokens`. D08 adds an opt-in demo seed. Schema
 decisions and the table-to-task map are in
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md). D07 adds no table: it wires up the ORM
 relationships between all eleven and the session handling in `app/core/db.py`.
@@ -76,6 +76,26 @@ uvicorn app.main:app --reload
 On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`.
 Interactive API documentation is then at http://localhost:8000/docs.
 
+### Optional local demo data (D08)
+
+After `alembic upgrade head`, run from `backend/`:
+
+```bash
+python -m app.seed_demo
+```
+
+Enter and confirm a password when prompted. The seed creates one synthetic
+employee, support agent, and admin, three `[demo]` categories, and five tickets
+covering the ticket statuses. Their emails are `demo.employee@example.test`,
+`demo.agent@example.test`, and `demo.admin@example.test`. No password is stored
+in the repository or echoed in the terminal. They use a salted PBKDF2-SHA256
+hash; A01/A02's login code must verify it with `app.core.passwords.verify_password`.
+Rerunning the command adds missing demo rows but does not duplicate or reset
+existing ones, including passwords or ticket edits. The same entered password
+applies only to *newly created* demo users. Use this only in a local demo
+database, never with real employee data. Demo tickets are synthetic snapshots;
+their direct insertion does not simulate API history or audit actions.
+
 ### 4. Frontend
 
 In a second terminal:
@@ -93,7 +113,7 @@ Open http://localhost:5173.
 | Check | Command | Expected |
 | --- | --- | --- |
 | Database is running | `docker compose ps` | `... (healthy)` |
-| Migration chain is at head | `cd backend && alembic current` | `20261014_d05_notify_settings (head)` |
+| Migration chain is at head | `cd backend && alembic current` | `20261014_d06_knowledge_articles (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
 | Backend tests | `cd backend && pytest -q` | All tests pass |
 | Frontend reaches the API | open http://localhost:5173 | `backend: ok` and `database: ok` |
@@ -110,6 +130,8 @@ backend/                FastAPI application
   app/main.py           application entry point, CORS, router mounting
   app/core/config.py    settings, read from the repository-root .env
   app/core/db.py        database connectivity check
+  app/core/passwords.py demo-compatible password hashing and verification
+  app/seed_demo.py      opt-in, repeatable local demo data
   app/models/           SQLAlchemy Base, Roles, Users, Categories, Tickets,
                         Comments, Ticket History, Attachments, Audit Logs,
                         Notifications, System Settings, and the naming convention
