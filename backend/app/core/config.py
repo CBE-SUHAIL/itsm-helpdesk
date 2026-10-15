@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     postgres_db: str = "itsm"
 
     frontend_origin: str = "http://localhost:5173"
+    jwt_secret: str = ""
 
     @property
     def database_url(self) -> str:

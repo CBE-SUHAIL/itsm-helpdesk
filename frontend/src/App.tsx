@@ -1,76 +1,75 @@
 import { useEffect, useState } from 'react'
+import { AuthProvider } from './auth'
+import { useAuth } from './authContext'
+import { LoginPage } from './LoginPage'
+import { UserManagement } from './UserManagement'
 import './App.css'
 
-type Health = {
-  status: string
-  database: string
+function usePath() {
+  const [path, setPath] = useState(window.location.pathname)
+  useEffect(() => {
+    const update = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', update)
+    return () => window.removeEventListener('popstate', update)
+  }, [])
+  const navigate = (next: string) => {
+    window.history.pushState({}, '', next)
+    setPath(next)
+  }
+  return { path, navigate }
 }
 
-type State =
-  | { kind: 'loading' }
-  | { kind: 'loaded'; health: Health }
-  | { kind: 'error'; message: string }
+function Workspace() {
+  const { user, loading, logout } = useAuth()
+  const { path, navigate } = usePath()
+  const [logoutError, setLogoutError] = useState('')
 
-// F03/F04 placeholder page. Its only job is to prove the React app can reach
-// the FastAPI backend and that the backend can reach PostgreSQL. Real screens
-// arrive with the checklist rows that specify them (A04, T08, T09, ...).
+  if (loading) return <main className="loading-screen">Restoring your session…</main>
+  if (!user) return <LoginPage />
+
+  const links = [{ path: '/', label: 'Home' }]
+  if (user.role === 'Admin') links.push({ path: '/admin/users', label: 'Users' })
+  const allowed = links.some((link) => link.path === path)
+
+  async function signOut() {
+    setLogoutError('')
+    try { await logout(); navigate('/') }
+    catch { setLogoutError('Signed out locally, but the server could not confirm logout.') }
+  }
+
+  return <div className="app-shell">
+    <aside className="sidebar">
+      <div className="brand"><span className="brand-mark">IT</span><span>ITSM<span className="brand-light"> Helpdesk</span></span></div>
+      <p className="sidebar-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        {links.map((link) => <a key={link.path} href={link.path} className={path === link.path ? 'selected' : ''}
+          onClick={(event) => { event.preventDefault(); navigate(link.path) }}>{link.label}</a>)}
+      </nav>
+      <div className="sidebar-bottom"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
+        <div><strong>{user.name}</strong><small>{user.role}</small></div></div>
+    </aside>
+    <div className="main-column">
+      <header className="topbar"><span>Local service workspace</span><button className="text-button" onClick={() => void signOut()}>Sign out</button></header>
+      {logoutError && <p className="form-error" role="alert">{logoutError}</p>}
+      <main>
+        {!allowed && <div className="content-width blocked"><span className="eyebrow">ACCESS RESTRICTED</span><h1>Page unavailable</h1><p>This page is not available to your account.</p><button onClick={() => navigate('/')}>Go home</button></div>}
+        {allowed && path === '/admin/users' && <UserManagement />}
+        {allowed && path === '/' && <div className="content-width home">
+          <span className="eyebrow">{user.role.toUpperCase()} WORKSPACE</span>
+          <h1>Welcome back, {user.name.split(' ')[0]}.</h1>
+          <p>Your account is connected. Ticket screens arrive in the next project tasks; this phase completes sign-in, access controls, and admin user management.</p>
+          <div className="home-card"><h2>{user.role === 'Admin' ? 'Manage your team' : 'Your workspace is ready'}</h2>
+            <p>{user.role === 'Admin' ? 'Create accounts, assign roles, and deactivate users from the Users page.' : 'Your role determines which parts of the helpdesk you can access.'}</p>
+            {user.role === 'Admin' && <button onClick={() => navigate('/admin/users')}>Open user management</button>}
+          </div>
+        </div>}
+      </main>
+    </div>
+  </div>
+}
+
 function App() {
-  const [state, setState] = useState<State>({ kind: 'loading' })
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    async function load() {
-      try {
-        const response = await fetch('/api/v1/health', { signal: controller.signal })
-        const health = (await response.json()) as Health
-        setState({ kind: 'loaded', health })
-      } catch (error) {
-        if (controller.signal.aborted) return
-        setState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    void load()
-    return () => controller.abort()
-  }, [])
-
-  return (
-    <main className="status-page">
-      <h1>ITSM helpdesk</h1>
-      <p className="subtitle">
-        F03/F04 scaffold. This page proves the React app can reach the API and
-        that the API can reach PostgreSQL.
-      </p>
-
-      {state.kind === 'loading' && <p className="line">Checking the backend...</p>}
-
-      {state.kind === 'loaded' && (
-        <ul className="checks">
-          <li className={state.health.status === 'ok' ? 'pass' : 'fail'}>
-            backend: {state.health.status}
-          </li>
-          <li className={state.health.database === 'ok' ? 'pass' : 'fail'}>
-            database: {state.health.database}
-          </li>
-        </ul>
-      )}
-
-      {state.kind === 'error' && (
-        <div className="failure">
-          <p className="line fail">Could not reach the backend.</p>
-          <p className="hint">
-            Start it from <code>backend/</code> with{' '}
-            <code>uvicorn app.main:app --reload</code>.
-          </p>
-          <p className="hint">{state.message}</p>
-        </div>
-      )}
-    </main>
-  )
+  return <AuthProvider><Workspace /></AuthProvider>
 }
 
 export default App

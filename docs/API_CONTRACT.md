@@ -1,7 +1,8 @@
 # API contract (F02 baseline; F06 shapes confirmed 14 October 2026)
 
-This is the shared agreement between the React app and FastAPI backend. It is
-not implemented yet. If the team changes a route or rule, update this file,
+This is the shared agreement between the React app and FastAPI backend. A01–A07
+implement the authentication and user routes below; other routes remain planned.
+If the team changes a route or rule, update this file,
 the requirements, and affected tests in the same commit. FastAPI's generated
 OpenAPI page at `/docs` must match the implemented contract.
 
@@ -11,8 +12,9 @@ keeps the narrower job of confirming that every route below names its request
 fields, response fields, and error codes, and that both people agree on them.
 The F06 additions below were reviewed and approved by Kavin in pull request
 [#6](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/6) on 14 October 2026 and
-are the agreed request/response/error shapes. They are still not implemented API
-behavior. D06 resolves the `Article` category gap by reusing `categories`, as
+are the agreed request/response/error shapes. The auth and user portion is now
+implemented; the remaining shapes are planned. D06 resolves the `Article`
+category gap by reusing `categories`, as
 recorded at the end of this file.
 
 Base path: `/api/v1`. JSON is used except for multipart file upload and CSV/PDF
@@ -24,6 +26,10 @@ downloads. IDs are UUID strings. Timestamps are ISO 8601 UTC strings ending in
 - A 30-minute JWT access token identifies the user and role. A 7-day refresh
   token is stored hashed server-side and revoked on logout. The React app must
   not assume that hiding an action grants or removes permission.
+  Refresh rotates on every use; presenting an old refresh token fails. Logout
+  revokes that refresh token, while an already-issued access token can remain
+  valid until its 30-minute expiry. Role changes make old access tokens fail
+  immediately because the API compares the token role with the current role.
 - List routes accept `limit` (default 20, max 100) and `offset` (default 0),
   plus the filters listed below. They return `{items: [...], total: number}`.
 - Errors return `{detail: string}`. Use 400 for invalid business input, 401 for

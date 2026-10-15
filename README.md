@@ -16,11 +16,14 @@ migration chain. D01 adds the `roles` and `users` tables, D02 adds
 `categories` and `tickets`, D03 adds `comments` and `ticket_history`, D04 adds
 `attachments` and `audit_logs`, and D05 adds `notifications` and
 `system_settings` plus the seeded settings row. D06 adds `knowledge_articles`;
-A01/A02 later adds `refresh_tokens`. D08 adds an opt-in demo seed. Schema
+A02 adds `refresh_tokens`. D08 adds an opt-in demo seed. Schema
 decisions and the table-to-task map are in
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md). D07 adds no table: it wires up the ORM
-relationships between all eleven and the session handling in `app/core/db.py`.
-The only API route is still the health check.
+relationships between the original eleven and the session handling in `app/core/db.py`.
+The implemented API routes are health, login, refresh, logout, current user,
+and admin user management. Other contract routes arrive with later tasks.
+React has login, a protected workspace, and an admin user screen; ticket pages
+are still future work.
 
 ## Stack
 
@@ -54,6 +57,16 @@ Copy-Item .env.example .env     # Windows PowerShell
 
 `.env` is gitignored and holds local development values only. Never commit real
 secrets or real user data.
+
+Before using login, generate a unique local JWT signing key:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Copy that output into your own `.env` as `JWT_SECRET=...`. Kavin must generate
+his own key on his computer. Never share or commit either key. The API health
+check works without it, but login returns a setup error until it is set.
 
 ### 2. Database
 
@@ -89,12 +102,31 @@ employee, support agent, and admin, three `[demo]` categories, and five tickets
 covering the ticket statuses. Their emails are `demo.employee@example.test`,
 `demo.agent@example.test`, and `demo.admin@example.test`. No password is stored
 in the repository or echoed in the terminal. They use a salted PBKDF2-SHA256
-hash; A01/A02's login code must verify it with `app.core.passwords.verify_password`.
+hash; A01's login code verifies it with `app.core.passwords.verify_password`.
 Rerunning the command adds missing demo rows but does not duplicate or reset
 existing ones, including passwords or ticket edits. The same entered password
 applies only to *newly created* demo users. Use this only in a local demo
 database, never with real employee data. Demo tickets are synthetic snapshots;
 their direct insertion does not simulate API history or audit actions.
+There is no password-reset route in v1; keep the local demo password available
+to the teammate using that database.
+
+### Authentication and user administration (A01–A07)
+
+Sign in at the frontend with a seeded account. Access tokens expire after 30
+minutes; refresh tokens last seven days, rotate on use, are stored hashed in
+PostgreSQL, and are revoked on logout. React keeps the access token in memory
+and the refresh token in this browser's local storage to restore a session
+after a reload. This is for the local internship demo, not a production
+deployment handling real employee data. Signing out revokes the stored refresh
+token; an already-issued access token can remain valid until its 30-minute
+expiry. Role changes invalidate old access tokens immediately.
+
+Only admins can open **Users** to create an account, filter the user list,
+change a name or role, and deactivate/reactivate a user. Users are not deleted.
+There is no public registration, password reset, or password-change screen in
+this phase. The backend enforces admin access even if someone enters the URL
+or calls the API directly.
 
 ### 4. Frontend
 
@@ -113,10 +145,10 @@ Open http://localhost:5173.
 | Check | Command | Expected |
 | --- | --- | --- |
 | Database is running | `docker compose ps` | `... (healthy)` |
-| Migration chain is at head | `cd backend && alembic current` | `20261014_d06_knowledge_articles (head)` |
+| Migration chain is at head | `cd backend && alembic current` | `20261015_a02_refresh_tokens (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
 | Backend tests | `cd backend && pytest -q` | All tests pass |
-| Frontend reaches the API | open http://localhost:5173 | `backend: ok` and `database: ok` |
+| Frontend reaches the API | open http://localhost:5173 | Sign-in screen; a seeded account can log in |
 
 `GET /api/v1/health` answers `503` with
 `{"status":"degraded","database":"unavailable"}` when PostgreSQL is
@@ -134,8 +166,8 @@ backend/                FastAPI application
   app/seed_demo.py      opt-in, repeatable local demo data
   app/models/           SQLAlchemy Base, Roles, Users, Categories, Tickets,
                         Comments, Ticket History, Attachments, Audit Logs,
-                        Notifications, System Settings, and the naming convention
-  app/api/v1/           versioned routes (health only so far)
+                        Notifications, System Settings, Refresh Tokens, and naming convention
+  app/api/v1/           versioned routes (health, auth, users so far)
   alembic/              migration environment and revisions
   alembic.ini           Alembic config; the database URL lives in .env instead
   tests/                pytest suite

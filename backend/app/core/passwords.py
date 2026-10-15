@@ -1,7 +1,7 @@
 """Local password hashing shared by the demo seed and future auth routes.
 
 The stored format is versioned by algorithm name and includes its own random
-salt and work factor. A01/A02 should call ``verify_password`` for seeded users.
+salt and work factor. A01 calls ``verify_password`` for seeded users.
 """
 
 import hashlib

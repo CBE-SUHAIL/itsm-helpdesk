@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from app.models.knowledge_article import KnowledgeArticle
     from app.models.notification import Notification
     from app.models.role import Role
+    from app.models.refresh_token import RefreshToken
     from app.models.ticket import Ticket
     from app.models.ticket_history import TicketHistory
 from app.models.role import utc_now
@@ -86,4 +87,7 @@ class User(Base):
     )
     knowledge_articles: Mapped[list["KnowledgeArticle"]] = relationship(
         "KnowledgeArticle", back_populates="author"
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        "RefreshToken", back_populates="user"
     )
