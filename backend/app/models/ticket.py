@@ -18,6 +18,7 @@ owned by T02, not a database constraint.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -28,9 +29,17 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.attachment import Attachment
+    from app.models.category import Category
+    from app.models.comment import Comment
+    from app.models.notification import Notification
+    from app.models.ticket_history import TicketHistory
+    from app.models.user import User
 from app.models.role import utc_now
 
 
@@ -92,4 +101,26 @@ class Ticket(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    # D07. `creator` and `assignee` both point at users, so each relationship
+    # names its foreign key explicitly rather than relying on inference.
+    category: Mapped["Category"] = relationship("Category", back_populates="tickets")
+    creator: Mapped["User"] = relationship(
+        "User", back_populates="tickets_created", foreign_keys="Ticket.creator_id"
+    )
+    assignee: Mapped["User | None"] = relationship(
+        "User", back_populates="tickets_assigned", foreign_keys="Ticket.assignee_id"
+    )
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment", back_populates="ticket"
+    )
+    history: Mapped[list["TicketHistory"]] = relationship(
+        "TicketHistory", back_populates="ticket"
+    )
+    attachments: Mapped[list["Attachment"]] = relationship(
+        "Attachment", back_populates="ticket"
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification", back_populates="ticket"
     )

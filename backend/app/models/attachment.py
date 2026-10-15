@@ -11,13 +11,18 @@ written once and only read.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.ticket import Ticket
+    from app.models.user import User
 from app.models.role import utc_now
 
 
@@ -57,3 +62,6 @@ class Attachment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
+
+    ticket: Mapped["Ticket"] = relationship("Ticket", back_populates="attachments")
+    uploader: Mapped["User"] = relationship("User", back_populates="attachments")

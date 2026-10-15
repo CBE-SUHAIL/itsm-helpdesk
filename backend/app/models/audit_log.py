@@ -17,13 +17,17 @@ different tables: it identifies whatever `entity_type` names.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 from app.models.role import utc_now
 
 
@@ -58,3 +62,6 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
+
+    # Null on a failed sign-in, which has no actor, so the link is optional.
+    actor: Mapped["User | None"] = relationship("User", back_populates="audit_logs")

@@ -18,8 +18,9 @@ migration chain. D01 adds the `roles` and `users` tables, D02 adds
 `system_settings` plus the seeded settings row. D06 adds `knowledge_articles`
 on a task branch; A01/A02 later adds `refresh_tokens`. Schema
 decisions and the table-to-task map are in
-[docs/DATA_MODEL.md](docs/DATA_MODEL.md). The only API route is still the health
-check.
+[docs/DATA_MODEL.md](docs/DATA_MODEL.md). D07 adds no table: it wires up the ORM
+relationships between all eleven and the session handling in `app/core/db.py`.
+The only API route is still the health check.
 
 ## Stack
 
