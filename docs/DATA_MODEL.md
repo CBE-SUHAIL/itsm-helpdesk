@@ -1,7 +1,7 @@
 # Data model
 
 Status: opened by F05 (database schema and migrations), 9 October 2026; D01
-landed 10 October and D02-D05 landed 14 October 2026. D06 is in progress.
+landed 10 October and D02-D06 landed 14 October 2026.
 
 [REQUIREMENTS.md](REQUIREMENTS.md) says what the system must do and
 [API_CONTRACT.md](API_CONTRACT.md) says what the API exchanges. Neither decides
@@ -93,6 +93,157 @@ storage shape. Do not vary one table at a time.
 This assignment now matches the local project checklist. The prior F05 draft
 mapped D02-D06 differently; D01 corrected the bookkeeping before later tables
 were added.
+
+## ER diagram
+
+F05's second acceptance item is an ER diagram covering "every database entity in
+the architecture". The picture in the mentor workbook names ten tables in its
+database layer; D06 added `knowledge_articles` as the eleventh, because the
+knowledge base appears in the workbook's React layer and needed somewhere to
+live. All eleven are drawn below.
+
+```mermaid
+erDiagram
+    roles {
+        uuid id PK
+        varchar name UK "Employee, Support agent, or Admin"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    users {
+        uuid id PK
+        uuid role_id FK
+        varchar name
+        varchar email UK "trimmed and lowercase"
+        varchar password_hash "never returned by any route"
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    categories {
+        uuid id PK
+        varchar name UK
+        varchar description "empty allowed, null is not"
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    tickets {
+        uuid id PK
+        varchar title "max 200"
+        text description
+        uuid category_id FK
+        uuid creator_id FK
+        uuid assignee_id FK "null while unassigned"
+        varchar status "Open, Assigned, In Progress, Resolved, or Closed"
+        varchar priority "Low, Medium, High, or Critical"
+        timestamptz response_due_at
+        timestamptz resolution_due_at
+        timestamptz first_response_at "null until first answered"
+        timestamptz resolved_at "null until resolved"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    comments {
+        uuid id PK
+        uuid ticket_id FK
+        uuid author_id FK
+        text body
+        timestamptz created_at
+    }
+    ticket_history {
+        uuid id PK
+        uuid ticket_id FK
+        uuid actor_id FK
+        varchar field "status, assignee_id, category_id, or priority"
+        varchar old_value "null when the field was unset"
+        varchar new_value "null when the field was cleared"
+        text reason "the resolution note lives here"
+        timestamptz created_at
+    }
+    attachments {
+        uuid id PK
+        uuid ticket_id FK
+        uuid uploader_id FK
+        varchar file_name "display only, never used to build a path"
+        varchar content_type
+        integer size_bytes
+        varchar storage_name UK "generated server-side and never exposed"
+        timestamptz created_at
+    }
+    audit_logs {
+        uuid id PK
+        uuid actor_id FK "null on a failed sign-in"
+        varchar action
+        varchar entity_type
+        uuid entity_id "no foreign key, it is polymorphic"
+        jsonb old_value
+        jsonb new_value
+        timestamptz created_at
+    }
+    notifications {
+        uuid id PK
+        uuid recipient_id FK
+        uuid ticket_id FK "null for notices with no ticket"
+        varchar type "assignment, comment, resolution, closure, or sla_breach"
+        text message
+        timestamptz read_at "null until read"
+        timestamptz dismissed_at "null until dismissed"
+        timestamptz created_at
+    }
+    system_settings {
+        uuid id PK
+        boolean is_singleton UK "true, so a second row is impossible"
+        jsonb sla_targets "one hours pair per priority"
+        bigint max_attachment_bytes
+        text allowed_attachment_types "native text array, at least one MIME type"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    knowledge_articles {
+        uuid id PK
+        varchar title "max 200"
+        text body
+        uuid category_id FK
+        uuid author_id FK
+        boolean is_published "false until an admin publishes it"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    roles ||--o{ users : "assigned to"
+    users ||--o{ tickets : "creates"
+    users |o--o{ tickets : "assigned"
+    categories ||--o{ tickets : "categorizes"
+    tickets ||--o{ comments : "receives"
+    users ||--o{ comments : "authors"
+    tickets ||--o{ ticket_history : "records"
+    users ||--o{ ticket_history : "acts"
+    tickets ||--o{ attachments : "carries"
+    users ||--o{ attachments : "uploads"
+    users |o--o{ audit_logs : "acts"
+    users ||--o{ notifications : "receives"
+    tickets |o--o{ notifications : "concerns"
+    categories ||--o{ knowledge_articles : "categorizes"
+    users ||--o{ knowledge_articles : "authors"
+```
+
+`|o` and `o{` on a left/right pair read as "zero or one" and "zero or more", and
+`||` as "exactly one". Three lines are drawn `|o` on the user or ticket side
+because the foreign key is nullable: a ticket is unassigned until an agent takes
+it, a failed sign-in has no actor, and a notification need not point at a
+ticket. Everything else is a required pointer. All fifteen foreign keys are
+restrictive, which is how "nothing is hard-deleted" is enforced.
+
+`alembic_version` is deliberately absent: it is Alembic's own table, not part of
+the model. `refresh_tokens` arrives with A01/A02 and must be added here in the
+same commit.
+
+`backend/tests/test_er_diagram.py` guards this section. It parses the block
+above and fails if a table, a column, a unique constraint, or a foreign key in
+the ORM metadata is missing from the diagram, or if the diagram invents
+something the metadata does not have. The check needs no database, so it runs
+even when nothing is listening on 5432.
 
 ## Columns the contract already fixes
 
