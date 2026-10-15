@@ -3,8 +3,9 @@
 Updated: 15 October 2026
 Checklist row: **T05 — category management API**
 Branch: `feat/T05-categories-api`, based on `main` at `b120441`
-Active owner: **Suhail** until T05 is pushed for Kavin's review. Only one person
-codes at a time; Kavin reviews this branch after the pull request is opened.
+Active owner: **Kavin for review** of pull request
+[#19](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/19). Only one person
+codes at a time; Suhail handles any review fixes.
 
 ## Where the project stands
 
@@ -53,10 +54,12 @@ ticket-core merge; T05 adds the category *management* routes, not that route.
 
 ## Exact next action
 
-Suhail pushes T05 and opens one pull request into `main`, requesting Kavin's
-review. Kavin checks permissions, validation, active-only filtering, and whether
-the contract should later expose inactive categories to admins. Suhail handles
-review fixes; merge only after review. Both update `main` before another task.
+Implementation commit `ae41472` was pushed on `feat/T05-categories-api`.
+Pull request [#19](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/19) is open
+against `main`, with Kavin-MK-Official requested as reviewer. Kavin checks
+permissions, validation, active-only filtering, and whether the contract should
+later expose inactive categories to admins. Suhail handles review fixes; merge
+only after review. Both update `main` before another task.
 
 On another computer, read `AGENTS.md`, `docs/WORKFLOW.md`,
 `docs/REQUIREMENTS.md`, and `docs/API_CONTRACT.md`, then check branch, status,
