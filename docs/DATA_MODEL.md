@@ -505,3 +505,21 @@ it. Nothing here changes the schema, so nothing here needs a migration.
   appears that no foreign key justifies. The rest run real PostgreSQL and prove a
   relationship loads from the database, that a commit is visible to a later
   session, and that a rollback leaves nothing behind.
+
+## D08 demo seed
+
+D08 adds no schema or migration. `python -m app.seed_demo` is an opt-in local
+setup step after `alembic upgrade head`. It inserts three roles if absent, one
+synthetic user per role, three clearly labeled demo categories, and five
+sample tickets spanning the lifecycle states. Stable UUIDs and `example.test`
+emails identify demo-owned rows; reruns only add missing rows and never update
+an existing password or ticket. A name/email collision with another row fails
+instead of claiming that row as demo data. The script commits as one unit of
+work, so an error leaves no partial seed.
+
+The password is prompted locally and stored only as a salted PBKDF2-SHA256
+hash. A01/A02 must use `app.core.passwords.verify_password` for these seeded
+accounts or deliberately migrate the hash format. Ticket deadlines are copied
+from the current `system_settings.sla_targets` on the initial seed run.
+Seeded tickets are synthetic state snapshots, not simulated user requests;
+they do not create ticket history or audit events. Later API changes do.
