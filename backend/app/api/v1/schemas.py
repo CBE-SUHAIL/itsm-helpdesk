@@ -1,4 +1,4 @@
-"""Strict request and response shapes for A01–A07, T01–T07, S01, and G01."""
+"""Strict request and response shapes for auth, users, categories, and tickets."""
 
 from datetime import datetime
 from typing import Any, Literal
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.core.sla import resolution_overdue, response_overdue
 from app.models import (
     AuditLog,
+    Category,
     Comment,
     Notification,
     Ticket,
@@ -120,6 +121,67 @@ class UserPage(StrictModel):
     total: int
 
 
+def _strip_not_blank(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("Must not be blank")
+    return value
+
+
+# --- T05: categories --------------------------------------------------------
+
+
+class CategoryOut(StrictModel):
+    id: UUID
+    name: str
+    description: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_category(cls, category: Category) -> "CategoryOut":
+        return cls(
+            id=category.id, name=category.name,
+            description=category.description, is_active=category.is_active,
+            created_at=category.created_at, updated_at=category.updated_at,
+        )
+
+
+class CategoryPage(StrictModel):
+    items: list[CategoryOut]
+    total: int
+
+
+class CreateCategoryIn(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return _strip_not_blank(value)
+
+
+class UpdateCategoryIn(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def nonempty(self):
+        if not self.model_fields_set or any(
+            getattr(self, field) is None for field in self.model_fields_set
+        ):
+            raise ValueError("At least one non-null field is required")
+        return self
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str | None) -> str | None:
+        return _strip_not_blank(value) if value is not None else None
+
+
 # --- T01–T04: tickets -------------------------------------------------------
 
 TicketStatus = Literal["Open", "Assigned", "In Progress", "Resolved", "Closed"]
@@ -128,13 +190,6 @@ HistoryField = Literal["status", "assignee_id", "category_id", "priority"]
 NotificationType = Literal[
     "assignment", "comment", "resolution", "closure", "sla_breach"
 ]
-
-
-def _strip_not_blank(value: str) -> str:
-    value = value.strip()
-    if not value:
-        raise ValueError("Must not be blank")
-    return value
 
 
 class TicketOut(StrictModel):

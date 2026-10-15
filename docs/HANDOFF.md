@@ -1,118 +1,64 @@
 # Current handoff
 
 Updated: 15 October 2026
-Checklist tasks: T01–T04 and T06 (ticket core APIs)
-Branch: `feat/T01-T07-S01-G01-support-api`, based on `main` at `88eb827`
-Active owner: **Kavin**, with pull request
-[#18](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/18) open against `main`
-and Suhail requested as reviewer. Only one person codes at a time; Suhail makes
-review fixes if any are needed.
+Checklist row: **T05 — category management API**
+Branch: `feat/T05-categories-api`, based on `main` at `b120441`
+Active owner: **Suhail** until T05 is pushed for Kavin's review. Only one person
+codes at a time; Kavin reviews this branch after the pull request is opened.
 
 ## Where the project stands
 
-F01–F06 and D01–D08 are on `main`, and A01–A07 merged as `88eb827` after Kavin
-approved pull request [#17](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/17).
-The only implemented endpoints are health, auth, users, and now the ticket core
-in this branch.
+F01–F06, D01–D08, A01–A07, and T01–T04/T06 are on `main`. Kavin's ticket-core
+pull request [#18](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/18) merged as
+`b120441` on 15 October, despite the preceding handoff's plan to leave it open
+for more Kavin rows. T07, S01, G01, G03, G04, G05, and G07 remain unstarted.
+The ticket-core write helpers `app/core/notify.py` and `app/core/audit.py` are
+available for S01 and G01. `POST /tickets/{id}/category` was included in the
+ticket-core merge; T05 adds the category *management* routes, not that route.
 
-Suhail's next checklist row is **T05, the category management API**. It is
-unstarted, has no branch, and is deliberately **not** in this pull request:
-`GET`, `POST`, and `PATCH /categories` remain planned in `API_CONTRACT.md`. The
-categories a ticket can be filed under therefore come only from the D08 demo
-seed until T05 lands. `POST /tickets` works against those seeded rows.
+## T05 implementation
 
-Kavin's remaining rows — T07 (attachments), S01 (notification API), G01
-(audit-log API), G03, G04, G05, and G07 — are not started either. Two of them
-are already unblocked by this branch: `app/core/notify.py` and `app/core/audit.py`
-hold the write side that S01 and G01 need.
+- `GET /api/v1/categories` requires login, returns only active categories,
+  sorted by name and ID, with the contract's `{items, total}` pagination.
+- `POST /api/v1/categories` is admin-only, creates an active category, and
+  returns all six `Category` fields. A name is trimmed, must not be blank, and
+  duplicate names return `409`. Description is required but may be empty.
+- `PATCH /api/v1/categories/{id}` is admin-only and accepts a nonempty subset of
+  `name`, `description`, and `is_active`. It can deactivate or reactivate without
+  deleting rows, so existing tickets and articles retain their category link.
+  Missing IDs return `404`, duplicate names `409`, invalid shapes `422`.
+- The existing category table already has the needed fields; T05 adds no
+  migration, new table, or column. No category audit entry is required by the
+  agreed audit list in `docs/REQUIREMENTS.md`.
 
-The workflow normally uses one branch per checklist row. Kavin and Suhail
-agreed to batch the remaining Kavin rows onto one branch and one pull request,
-the same way A01–A07 was handled, so this branch stays open and keeps receiving
-commits until that set is done.
+## Checks and open points
 
-## What this branch adds
+- New `backend/tests/test_categories_api.py` checks roles, active-only listing,
+  paging, validation, duplicate handling, edit/deactivation/reactivation, and
+  the effect of deactivation on existing versus new tickets.
+- Full backend suite on Suhail's Mac: **48 passed, 1 warning**. The warning is
+  the pre-existing Starlette TestClient deprecation. Tests use an outer
+  rollback transaction, so no T05 test rows persist.
+- `alembic check`: **No new upgrade operations detected**.
+- `GET /categories` is active-only even for admins, as `API_CONTRACT.md`
+  specifies. An admin therefore needs a previously known category ID to
+  reactivate an inactive category; a future reviewed contract change could add
+  an admin-only inactive-list option. This is not silently added in T05.
+- Kavin's #17 review left non-blocking follow-ups: refresh-token reuse/family
+  revocation, pruning expired tokens, a missing last-admin-demotion test,
+  login `503` contract documentation, and OpenAPI `422` documentation.
+- No checklist row owns `GET /settings` or `PATCH /settings`; assignment still
+  needs a team decision. Mentor update entries from 2026-10-07 onward were
+  marked not sent in the preceding handoff and have not been changed here.
 
-- **T01** — `GET /tickets` (filtered by `status`, `priority`, `category_id`,
-  `assignee_id`, `created_from`, `created_to`, newest first), `POST /tickets`,
-  and `GET /tickets/{id}`. An employee is scoped to their own tickets before
-  any filter is applied, and another employee's ID answers `404` rather than
-  `403` so tickets cannot be probed for existence.
-- **T02** — `POST /tickets/{id}/status`. `Open → Assigned → In Progress →
-  Resolved → Closed`. Only the assigned agent starts or resolves work; only the
-  ticket's creator (the employee who raised it, not the assigned agent) or an
-  admin closes. `Resolved` requires a nonblank `resolution_note`, kept on the
-  history row as `reason`, and resuming a `Resolved` ticket clears `resolved_at`.
-- **T03** — `POST /tickets/{id}/assignment`. An agent self-assigns an
-  unassigned `Open` ticket; an admin reassigns or unassigns. A null assignee is
-  admin-only and moves `Assigned`/`In Progress` back to `Open`. An assignee who
-  is unknown, inactive, or not an agent is a `400`.
-- **T04** — `POST /tickets/{id}/priority` with a required nonblank reason, plus
-  the SLA helpers in `app/core/sla.py`. Deadlines are copied onto the ticket at
-  creation and recomputed from the original `created_at` when the priority
-  changes, because priority is what determines them. `response_overdue` and
-  `resolution_overdue` are derived at read time and stay visible once breached.
-- **T06** — `GET`/`POST /tickets/{id}/comments` and `GET /tickets/{id}/history`,
-  both oldest first. The first comment from the assigned agent also records
-  `first_response_at`.
+## Exact next action
 
-Supporting modules: `app/core/sla.py` (deadlines and the overdue rules),
-`app/core/audit.py` (`record_audit`, append-only, same transaction), and
-`app/core/notify.py` (`notify` and `notify_admins`, same transaction). Ticket
-changes are transactional end to end: the ticket, one history row per changed
-field, one audit entry, and the relevant notifications commit or roll back
-together, and a request that changes nothing writes neither history nor audit.
+Suhail pushes T05 and opens one pull request into `main`, requesting Kavin's
+review. Kavin checks permissions, validation, active-only filtering, and whether
+the contract should later expose inactive categories to admins. Suhail handles
+review fixes; merge only after review. Both update `main` before another task.
 
-`docs/API_CONTRACT.md` had its "what is implemented" paragraph updated to name
-the ticket routes; no route, shape, or rule in it was changed.
-
-## Checks
-
-- Full backend suite on this machine: **45 passed, 1 warning**. The warning is
-  the pre-existing Starlette `TestClient` deprecation.
-- `alembic check`: **No new upgrade operations detected**. This branch adds no
-  migration, table, or column.
-- New file `backend/tests/test_tickets_api.py` has 15 tests covering
-  permissions, transitions, SLA boundary arithmetic, list filters, pagination,
-  and the transactional side effects.
-- The development database was left with zero tickets, history, comments,
-  notifications, audit entries, categories, and users, so the tests leave no
-  residue. The suite runs against real PostgreSQL inside one outer transaction
-  that is rolled back.
-- No secrets, no real user data, and nothing from the local-only `reference/`
-  folder is committed. `git status` on `main` is clean.
-
-## Open items carried forward
-
-- Kavin's review of [#17](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/17)
-  left five non-blocking follow-ups that are still open: refresh-token reuse and
-  family revocation, no pruning of expired refresh tokens, the untested
-  demote-last-admin branch, `503` missing from the login contract row, and the
-  OpenAPI `422` documentation mismatch.
-- No checklist row owns `GET /settings` and `PATCH /settings`; that needs a
-  decision.
-- The mentor-updates sheet is due on Mondays, Wednesdays, and Fridays. The
-  entries from 2026-10-07 onward are still marked not sent.
-
-## Review focus and exact next action
-
-Suhail reviews pull request
-[#18](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/18) as it stands, for the
-`404`-instead-of-`403` choice on other employees' ticket IDs, for whether the
-notification triggers match what S01 will need, and for whether
-`POST /tickets/{id}/category` belongs with T05 instead of here. He leaves a
-GitHub review or actionable comments, and Kavin makes any review fixes.
-
-By agreement this pull request stays **open and unmerged** and keeps
-accumulating Kavin's remaining rows — T07, S01, G01, G03, G04, G05, and G07 —
-so that all of them land under one branch and one review. It merges once that
-set is complete and reviewed. That is a deliberate departure from the usual one
-branch per row; A01–A07 was batched the same way.
-
-Kavin is paused here, at Suhail's next checklist row. Suhail becomes active
-owner for **T05**, the category management API, on a new branch taken from
-`main`. T05 also edits `backend/app/api/v1/schemas.py`, which this branch
-changes, so expect a merge in that file when #18 eventually lands.
-
-On another computer, read `AGENTS.md`, `WORKFLOW.md`, `REQUIREMENTS.md`, and
-`API_CONTRACT.md`, then check branch, status, commit, and remote before editing.
+On another computer, read `AGENTS.md`, `docs/WORKFLOW.md`,
+`docs/REQUIREMENTS.md`, and `docs/API_CONTRACT.md`, then check branch, status,
+commit, and remote before editing. No secrets or local-only reference files
+belong in Git.
