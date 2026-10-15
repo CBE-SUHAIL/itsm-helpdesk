@@ -7,6 +7,7 @@ sqlalchemy>=2.0
 # F05 owns the migration chain; see docs/DATA_MODEL.md.
 alembic>=1.14
 psycopg[binary]>=3.2
+PyJWT>=2.9,<3
 
 # Test tooling (G05 owns the full suite; this is the F03/F04 smoke test).
 pytest>=8.3

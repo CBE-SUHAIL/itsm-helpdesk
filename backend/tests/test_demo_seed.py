@@ -104,3 +104,33 @@ def test_demo_seed_can_run_twice_without_duplicates_or_resets() -> None:
                 outer.rollback()
     finally:
         engine.dispose()
+
+
+def test_demo_seed_refuses_to_claim_an_unrelated_category() -> None:
+    engine = create_engine(
+        get_settings().database_url, connect_args={"connect_timeout": 5}
+    )
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    seed_key = f"collision-{uuid4().hex[:8]}"
+    try:
+        with engine.connect() as connection:
+            outer = connection.begin()
+            config.attributes["connection"] = connection
+            try:
+                command.upgrade(config, "head")
+                with Session(bind=connection, join_transaction_mode="create_savepoint",
+                             autoflush=False) as session:
+                    unrelated = Category(
+                        name=f"[{seed_key}] Hardware", description="Already mine",
+                        is_active=True,
+                    )
+                    session.add(unrelated)
+                    session.commit()
+                    with pytest.raises(ValueError, match="already belongs to another row"):
+                        seed_demo(session, "test-only-password", seed_key=seed_key)
+                    session.rollback()
+                    assert session.get(Category, unrelated.id).description == "Already mine"
+            finally:
+                outer.rollback()
+    finally:
+        engine.dispose()

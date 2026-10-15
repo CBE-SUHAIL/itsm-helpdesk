@@ -27,7 +27,7 @@ F05 owns the migration **mechanism**. The baseline revision
   them once a table exists costs a migration per rename.
 
 The tables and their minimal ORM models arrive together with D01-D06, and
-`refresh_tokens` with A01/A02. D07 adds no table: it wires the models to each
+`refresh_tokens` with A02. D07 adds no table: it wires the models to each
 other and adds the session factory and transaction boundary. Keeping each model
 beside its migration lets `test_models_match_the_database` detect drift from D01
 onward.
@@ -62,6 +62,8 @@ storage shape. Do not vary one table at a time.
   server-default `now()` that the application cannot see.
 - **`created_at` and `updated_at` on every table** except the append-only ones
   below, which carry `created_at` only because they are never updated.
+  `refresh_tokens` also omits `updated_at`: its only state change is revocation,
+  recorded specifically by `revoked_at`.
 - **Nothing is hard-deleted** in v1: not tickets, comments, attachments,
   articles, or users. Users are deactivated; the rest are withheld from list
   routes by a flag or a status instead of a `DELETE`.
@@ -88,7 +90,7 @@ storage shape. Do not vary one table at a time.
 | D04 | `attachments`, `audit_logs` | File metadata and immutable activity records. |
 | D05 | `notifications`, `system_settings` | Personal notices and admin settings. |
 | D06 | `knowledge_articles` | Knowledge-base content. |
-| A01/A02 | `refresh_tokens` | Hashed refresh tokens for session management. |
+| A02 | `refresh_tokens` | Hashed refresh tokens for session management. |
 
 This assignment now matches the local project checklist. The prior F05 draft
 mapped D02-D06 differently; D01 corrected the bookkeeping before later tables
@@ -100,7 +102,8 @@ F05's second acceptance item is an ER diagram covering "every database entity in
 the architecture". The picture in the mentor workbook names ten tables in its
 database layer; D06 added `knowledge_articles` as the eleventh, because the
 knowledge base appears in the workbook's React layer and needed somewhere to
-live. All eleven are drawn below.
+live. A02 adds refresh-token sessions as the twelfth table. All twelve are
+drawn below.
 
 ```mermaid
 erDiagram
@@ -210,6 +213,14 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK "SHA-256 digest, never the raw token"
+        timestamptz expires_at
+        timestamptz revoked_at "null until rotated or logged out"
+        timestamptz created_at
+    }
 
     roles ||--o{ users : "assigned to"
     users ||--o{ tickets : "creates"
@@ -226,18 +237,19 @@ erDiagram
     tickets |o--o{ notifications : "concerns"
     categories ||--o{ knowledge_articles : "categorizes"
     users ||--o{ knowledge_articles : "authors"
+    users ||--o{ refresh_tokens : "owns"
 ```
 
 `|o` and `o{` on a left/right pair read as "zero or one" and "zero or more", and
 `||` as "exactly one". Three lines are drawn `|o` on the user or ticket side
 because the foreign key is nullable: a ticket is unassigned until an agent takes
 it, a failed sign-in has no actor, and a notification need not point at a
-ticket. Everything else is a required pointer. All fifteen foreign keys are
+ticket. Everything else is a required pointer. All sixteen foreign keys are
 restrictive, which is how "nothing is hard-deleted" is enforced.
 
 `alembic_version` is deliberately absent: it is Alembic's own table, not part of
-the model. `refresh_tokens` arrives with A01/A02 and must be added here in the
-same commit.
+the model. A02 adds `refresh_tokens`, whose raw value exists only in the client
+and is rotated on refresh or revoked on logout.
 
 `backend/tests/test_er_diagram.py` guards this section. It parses the block
 above and fails if a table, a column, a unique constraint, or a foreign key in
@@ -291,8 +303,8 @@ listed so a D-row does not have to rediscover them:
 ## Not yet decided here
 
 D01-D06 have all landed, and D06 settles the article-category shape below. D07
-settles shared relationships and session handling, also below. `refresh_tokens`
-arrives with A01/A02.
+settles shared relationships and session handling, also below. A02 adds
+`refresh_tokens`.
 
 ## D01 decisions
 
@@ -518,7 +530,7 @@ instead of claiming that row as demo data. The script commits as one unit of
 work, so an error leaves no partial seed.
 
 The password is prompted locally and stored only as a salted PBKDF2-SHA256
-hash. A01/A02 must use `app.core.passwords.verify_password` for these seeded
+hash. A01 uses `app.core.passwords.verify_password` for these seeded
 accounts or deliberately migrate the hash format. Ticket deadlines are copied
 from the current `system_settings.sla_targets` on the initial seed run.
 Seeded tickets are synthetic state snapshots, not simulated user requests;
