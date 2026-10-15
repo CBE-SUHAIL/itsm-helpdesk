@@ -3,9 +3,9 @@
 Updated: 15 October 2026
 Checklist tasks: A01–A07 (authentication, permissions, and user administration)
 Branch: `feat/A01-A07-auth-admin`, based on `main` after D08 merge `5ff2239`
-Active owner: **Suhail** until this branch is pushed. Incoming owner:
-**Kavin** reviews the combined A01–A07 pull request. Only one person codes at
-a time; Suhail handles any review fixes after Kavin leaves comments.
+Active owner: **Kavin** for review of combined A01–A07 pull request
+[#17](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/17). Only one person
+codes at a time; Suhail handles any review fixes after Kavin leaves comments.
 
 ## Where the project stands
 
@@ -73,8 +73,10 @@ but would need a stronger browser storage design before real employee data is
 used. Also confirm that future routes apply `require_roles` appropriately;
 A03 cannot protect routes that do not exist yet.
 
-Suhail pushes this branch and opens one PR to `main`, requesting Kavin. Kavin
-submits a GitHub review or actionable comments. Suhail makes review fixes if
+Implementation commit `ca9bb8b` and handoff commit `fd6b221` were pushed.
+PR [#17](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/17) is open against
+`main`, and Kavin was requested as reviewer. Kavin submits a GitHub review or
+actionable comments. Suhail makes review fixes if
 needed; merge only after review. Both pull `main` before starting the next
 checklist row. On another computer, read `AGENTS.md`, `WORKFLOW.md`,
 `REQUIREMENTS.md`, and `API_CONTRACT.md`, then check branch, status, commit,
