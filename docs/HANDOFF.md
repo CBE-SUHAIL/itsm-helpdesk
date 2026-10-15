@@ -3,8 +3,9 @@
 Updated: 15 October 2026
 Checklist task: D08 (Seed demo users and tickets)
 Branch: `feat/D08-demo-seed`, based on `main` at `1bbb2ea`
-Active owner: **Suhail** until D08 is pushed. Incoming owner: **Kavin** reviews
-the D08 pull request before merge. Suhail then takes A01 and A02.
+Active owner: **Kavin** for review of D08 pull request
+[#16](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/16). Suhail owns any
+review fixes, then takes A01 and A02 after merge.
 
 ## Where the project stands
 
@@ -74,9 +75,11 @@ already-migrated database; after the required setup:
 
 ## Exact next action
 
-Suhail pushes this branch and opens a D08 pull request. **Kavin reviews it**
-and leaves a GitHub review or actionable comments. Suhail responds to changes
-if needed; merge only after review. Next active implementation row for Suhail
+The implementation was pushed as `039a9f9`; D08 PR
+[#16](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/16) is open and Kavin
+was requested as reviewer. **Kavin reviews it** and leaves a GitHub review or
+actionable comments. Suhail responds to changes if needed; merge only after
+review. Next active implementation row for Suhail
 is A01 (Password storage and login API), followed by A02 (JWT validation and
 session rules). Read `AGENTS.md`, `WORKFLOW.md`, `REQUIREMENTS.md`, and
 `API_CONTRACT.md`, then check branch, status, commit, and remote before editing.
