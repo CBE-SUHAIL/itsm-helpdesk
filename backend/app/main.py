@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import auth, health, tickets, users
+from app.api.v1 import auth, categories, health, tickets, users
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -36,4 +36,5 @@ async def validation_error(_request: Request, _error: RequestValidationError) ->
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(categories.router, prefix="/api/v1")
 app.include_router(tickets.router, prefix="/api/v1")
