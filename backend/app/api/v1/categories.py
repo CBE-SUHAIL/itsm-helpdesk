@@ -19,11 +19,11 @@ from app.models import Category, User
 from app.models.role import utc_now
 
 
-router = APIRouter()
+router = APIRouter(tags=["categories"])
 admin = require_roles("Admin")
 
 
-@router.get("/categories", response_model=CategoryPage)
+@router.get("/categories", response_model=CategoryPage, summary="List active categories")
 def list_categories(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -42,7 +42,7 @@ def list_categories(
     )
 
 
-@router.post("/categories", response_model=CategoryOut, status_code=201)
+@router.post("/categories", response_model=CategoryOut, status_code=201, summary="Create a category")
 def create_category(
     data: CreateCategoryIn,
     _: User = Depends(admin),
@@ -60,7 +60,7 @@ def create_category(
     return CategoryOut.from_category(category)
 
 
-@router.patch("/categories/{category_id}", response_model=CategoryOut)
+@router.patch("/categories/{category_id}", response_model=CategoryOut, summary="Edit a category")
 def update_category(
     category_id: UUID,
     data: UpdateCategoryIn,

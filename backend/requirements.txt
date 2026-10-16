@@ -8,6 +8,8 @@ sqlalchemy>=2.0
 alembic>=1.14
 psycopg[binary]>=3.2
 PyJWT>=2.9,<3
+# T07 attachment uploads are multipart forms; FastAPI needs this to parse them.
+python-multipart>=0.0.18
 
 # Test tooling (G05 owns the full suite; this is the F03/F04 smoke test).
 pytest>=8.3

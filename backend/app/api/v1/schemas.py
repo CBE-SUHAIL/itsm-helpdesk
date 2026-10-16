@@ -1,4 +1,10 @@
-"""Strict request and response shapes for auth, users, categories, and tickets."""
+"""Strict request and response shapes for every implemented route.
+
+One `*Out` class per contract shape and one `*In` class per request body, each
+inheriting `StrictModel` so an unknown field is a 422 rather than a silently
+ignored value. The shapes are asserted against `docs/API_CONTRACT.md` by
+`tests/test_openapi_docs.py`.
+"""
 
 from datetime import datetime
 from typing import Any, Literal
@@ -8,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.core.sla import resolution_overdue, response_overdue
 from app.models import (
+    Attachment,
     AuditLog,
     Category,
     Comment,
@@ -348,6 +355,38 @@ class TicketHistoryOut(StrictModel):
 
 class TicketHistoryPage(StrictModel):
     items: list[TicketHistoryOut]
+    total: int
+
+
+# --- T07: attachments -------------------------------------------------------
+
+
+class AttachmentOut(StrictModel):
+    """The contract's Attachment shape. `storage_name` is deliberately absent."""
+
+    id: UUID
+    ticket_id: UUID
+    uploader_id: UUID
+    file_name: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+
+    @classmethod
+    def from_attachment(cls, attachment: Attachment) -> "AttachmentOut":
+        return cls(
+            id=attachment.id,
+            ticket_id=attachment.ticket_id,
+            uploader_id=attachment.uploader_id,
+            file_name=attachment.file_name,
+            content_type=attachment.content_type,
+            size_bytes=attachment.size_bytes,
+            created_at=attachment.created_at,
+        )
+
+
+class AttachmentPage(StrictModel):
+    items: list[AttachmentOut]
     total: int
 
 

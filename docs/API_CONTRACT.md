@@ -3,12 +3,12 @@
 This is the shared agreement between the React app and FastAPI backend. A01–A07
 implement the authentication and user routes below; T01–T04 and T06 implement
 the ticket routes (create, read, assignment, status, priority, category,
-comments, and history). T05 implements the three category routes. Attachments,
-articles, notifications, reports, settings, and audit-log reading remain
-planned. If the team changes a route or rule, update this file, the
-requirements, and affected tests in the same commit. FastAPI's generated
-OpenAPI page at `/docs` must match the
-implemented contract.
+comments, and history); T05 implements the three category routes; T07 implements
+attachment upload, listing, and download; S01 implements the notification read,
+mark-read, and dismiss routes; and G01 implements audit-log reading. Articles,
+reports, and settings remain planned. If the team changes a route or rule, update
+this file, the requirements, and affected tests in the same commit. FastAPI's
+generated OpenAPI page at `/docs` must match the implemented contract.
 
 Pull request #1 accepted this baseline and the four review decisions recorded in
 [REQUIREMENTS.md](REQUIREMENTS.md) under "F02 review decisions". Checklist row F06
