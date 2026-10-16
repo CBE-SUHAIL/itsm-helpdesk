@@ -4,9 +4,10 @@ Updated: 16 October 2026
 Checklist rows: **T07, S01, G01** implemented; **G03, G04, G05, G07** advanced
 as far as the implemented API allows, with the limits stated below.
 Branch: `feat/T07-S01-G01-support-api`, based on `main` at `2b603c2`
-Active owner: **Kavin**, with a pull request open against `main` and Suhail
-requested as reviewer. Only one person codes at a time; Kavin makes any review
-fixes.
+Active owner: **Kavin**, with pull request
+[#20](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/20) open against `main`
+and Suhail requested as reviewer. Only one person codes at a time; Kavin makes
+any review fixes.
 
 ## Where the project stands
 
@@ -161,12 +162,13 @@ Still open from before:
 
 ## Review focus and exact next action
 
-Suhail reviews the pull request for T07's authorization and path handling, S01's
-read/dismiss independence and ownership scoping, and G01's filters and
-admin-only guard. He should also confirm the two contract questions raised above
-(attachment list ordering, and `503` for missing settings) and say whether the
-G03/G04/G05/G07 partial state is acceptable as recorded, rather than being split
-into their own rows.
+Suhail reviews pull request
+[#20](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/20) for T07's
+authorization and path handling, S01's read/dismiss independence and ownership
+scoping, and G01's filters and admin-only guard. He should also confirm the two
+contract questions raised above (attachment list ordering, and `503` for missing
+settings) and say whether the G03/G04/G05/G07 partial state is acceptable as
+recorded, rather than being split into their own rows.
 
 Kavin makes any review fixes. After merge, both pull `main` before starting the
 next branch. The next unclaimed work is Suhail's T08 (ticket list, search, and
