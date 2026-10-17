@@ -23,11 +23,12 @@ row; the read and dismiss routes live in the notifications router.
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.models import Notification, Role, User
+from app.models import Notification, Role, Ticket, User
 from app.models.role import utc_now
+from app.core.sla import resolution_overdue, response_overdue
 
 
 def notify(
@@ -67,3 +68,45 @@ def notify_admins(
         )
         for admin in admins
     ]
+
+
+def scan_sla_breaches(session: Session) -> int:
+    """Create one alert per breached ticket/recipient when an inbox is polled.
+
+    The local-only app has no queue or external scheduler. A transaction-level
+    PostgreSQL lock keeps simultaneous polls from creating duplicate notices.
+    """
+    session.execute(text("SELECT pg_advisory_xact_lock(1758667291)"))
+    now = utc_now()
+    candidates = session.scalars(
+        select(Ticket).where(
+            (Ticket.response_due_at < now) | (Ticket.resolution_due_at < now)
+        )
+    ).all()
+    count = 0
+    for ticket in candidates:
+        if not (response_overdue(ticket, now) or resolution_overdue(ticket, now)):
+            continue
+        if ticket.assignee_id is not None:
+            recipients = [ticket.assignee_id]
+        else:
+            recipients = session.scalars(
+                select(User.id).join(Role).where(
+                    Role.name == "Admin", User.is_active.is_(True)
+                )
+            ).all()
+        for recipient_id in recipients:
+            exists = session.scalar(
+                select(Notification.id).where(
+                    Notification.ticket_id == ticket.id,
+                    Notification.recipient_id == recipient_id,
+                    Notification.type == "sla_breach",
+                ).limit(1)
+            )
+            if exists is None:
+                notify(session, recipient_id=recipient_id, ticket_id=ticket.id,
+                       type="sla_breach", message=f"SLA deadline missed for ticket: {ticket.title}")
+                count += 1
+    if count:
+        session.commit()
+    return count

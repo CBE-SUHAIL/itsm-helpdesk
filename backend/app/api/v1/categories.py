@@ -23,17 +23,20 @@ router = APIRouter(tags=["categories"])
 admin = require_roles("Admin")
 
 
-@router.get("/categories", response_model=CategoryPage, summary="List active categories")
+@router.get("/categories", response_model=CategoryPage, summary="List categories")
 def list_categories(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    _: User = Depends(current_user),
+    include_inactive: bool = False,
+    user: User = Depends(current_user),
     session: Session = Depends(get_db),
 ) -> CategoryPage:
-    active = Category.is_active.is_(True)
-    total = session.scalar(select(func.count()).select_from(Category).where(active)) or 0
+    if include_inactive and user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    where = [] if include_inactive else [Category.is_active.is_(True)]
+    total = session.scalar(select(func.count()).select_from(Category).where(*where)) or 0
     categories = session.scalars(
-        select(Category).where(active)
+        select(Category).where(*where)
         .order_by(Category.name, Category.id).limit(limit).offset(offset)
     ).all()
     return CategoryPage(
