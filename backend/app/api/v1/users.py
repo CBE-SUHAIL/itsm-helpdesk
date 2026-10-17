@@ -15,7 +15,7 @@ from app.models import AuditLog, Role, User
 from app.models.role import utc_now
 
 
-router = APIRouter()
+router = APIRouter(tags=["users"])
 admin = require_roles("Admin")
 
 
@@ -26,7 +26,7 @@ def role_by_name(session: Session, name: str) -> Role:
     return role
 
 
-@router.get("/users", response_model=UserPage)
+@router.get("/users", response_model=UserPage, summary="List users")
 def list_users(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -50,7 +50,7 @@ def list_users(
     return UserPage(items=[UserOut.from_user(user) for user in users], total=total)
 
 
-@router.post("/users", response_model=UserOut, status_code=201)
+@router.post("/users", response_model=UserOut, status_code=201, summary="Create a user")
 def create_user(
     data: CreateUserIn,
     actor: User = Depends(admin),
@@ -79,7 +79,7 @@ def create_user(
     return UserOut.from_user(user)
 
 
-@router.patch("/users/{user_id}", response_model=UserOut)
+@router.patch("/users/{user_id}", response_model=UserOut, summary="Edit a user")
 def update_user(
     user_id: UUID,
     data: UpdateUserIn,

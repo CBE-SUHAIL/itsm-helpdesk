@@ -14,13 +14,13 @@ from app.models import AuditLog, User
 from app.models.role import utc_now
 
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
 # A constant valid hash makes an unknown address take the same expensive
 # verification path as a known address, without looking up a real account.
 _DUMMY_HASH = hash_password("not-an-account-password")
 
 
-@router.post("/auth/login", response_model=LoginOut)
+@router.post("/auth/login", response_model=LoginOut, summary="Sign in")
 def login(data: LoginIn, session: Session = Depends(get_db)) -> LoginOut:
     email = data.email.strip().lower()
     user = session.scalar(select(User).where(User.email == email))
@@ -44,7 +44,7 @@ def login(data: LoginIn, session: Session = Depends(get_db)) -> LoginOut:
     )
 
 
-@router.post("/auth/refresh", response_model=TokenPair)
+@router.post("/auth/refresh", response_model=TokenPair, summary="Exchange a refresh token")
 def refresh(data: RefreshIn, session: Session = Depends(get_db)) -> TokenPair:
     record = find_refresh_token(session, data.refresh_token, lock=True)
     user = session.get(User, record.user_id)
@@ -57,7 +57,7 @@ def refresh(data: RefreshIn, session: Session = Depends(get_db)) -> TokenPair:
     return TokenPair(access_token=access, refresh_token=replacement)
 
 
-@router.post("/auth/logout", status_code=204)
+@router.post("/auth/logout", status_code=204, summary="Sign out")
 def logout(
     data: RefreshIn,
     user: User = Depends(current_user),
@@ -71,6 +71,6 @@ def logout(
     return Response(status_code=204)
 
 
-@router.get("/users/me", response_model=UserOut)
+@router.get("/users/me", response_model=UserOut, summary="Read the signed-in user")
 def me(user: User = Depends(current_user)) -> UserOut:
     return UserOut.from_user(user)

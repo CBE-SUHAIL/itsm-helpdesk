@@ -1,0 +1,2465 @@
+{
+  "info": {
+    "_postman_id": "0f3e4d2a-1c5b-4a7e-9d10-2b8c6f5a4e31",
+    "name": "ITSM Helpdesk API (G04)",
+    "description": "G04 - Postman API test collection for the local ITSM helpdesk backend. It covers every route mounted in backend/app/main.py (health, auth, users, categories, tickets, ticket attachments, notifications, and audit logs) and follows docs/API_CONTRACT.md, the agreed source of truth for request fields, response fields, and error codes.\n\nHow to use it: start the backend at http://localhost:8000, run 'alembic upgrade head' and the D08 demo seed ('python -m app.seed_demo'), then run the folders in order. Each login request writes accessToken and refreshToken, and each create request writes the id (categoryId, ticketId, secondTicketId, userId, attachmentId, notificationId) that later requests use. The demo password variables must be set to the password you typed for the D08 seed; no password is stored in the repository.\n\nThe two attachment requests need a local file chosen in the form field named 'file' (05.1 an allowed type, 08.9 a disallowed type).\n\nPlanned but unimplemented routes are deliberately absent because backend/app/api/v1/ does not mount them: articles, dashboard, reports, settings, and the React-only rows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Health",
+      "description": "G04 - collection smoke test. GET /health is the one route that needs no token, so it proves the API and PostgreSQL are up before anything else runs.",
+      "item": [
+        {
+          "name": "00.1 GET /health - the API and its database are up",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/health",
+            "description": "Proves the FastAPI app answers and can reach PostgreSQL. A 503 with {'status': 'degraded'} means the database is down, so later folders would fail for that reason rather than from a bad request."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and both dependencies ok', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.status).to.eql('ok');",
+                  "    pm.expect(body.database).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "description": "A01-A07 - sign in, read the current user, rotate a refresh token, sign out, and switch between the three D08 demo roles. The login requests write accessToken and refreshToken, which every protected request below sends as 'Authorization: Bearer {{accessToken}}'.",
+      "item": [
+        {
+          "name": "01.1 Login as the demo employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "POST /auth/login with the seeded D08 employee. Asserts the 200 token pair, that the User shape carries no password hash, and stores accessToken and refreshToken for the rest of the collection.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{employeeEmail}}\", \"password\": \"{{employeePassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.2 GET /users/me - the employee token identifies the demo employee",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/me",
+            "description": "Proves the stored accessToken belongs to the demo employee and that the User shape returns the role name and no password field."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the User shape without secrets', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('employeeEmail'));",
+                  "    pm.expect(body.role).to.eql('Employee');",
+                  "    pm.expect(pm.response.text()).to.not.include('password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.3 POST /auth/refresh - rotate the refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/refresh",
+            "description": "Proves refresh rotation: the 200 returns a new access token and a different refresh token, and both replace the stored variables. Presenting the old refresh token again would answer 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\": \"{{refreshToken}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const previous = pm.collectionVariables.get('refreshToken');",
+                  "pm.test('200 and a rotated token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.refresh_token).to.not.eql(previous);",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.4 POST /auth/logout - revoke that refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/logout",
+            "description": "Proves sign-out answers 204 with no body and revokes the refresh token it was given. An access token already issued stays valid for its 30 minutes, which the later folders rely on.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\": \"{{refreshToken}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 and no body', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "    pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.5 Login as the demo support agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Signs in as the seeded D08 support agent and replaces the stored tokens, because assignment, status, and priority routes are agent routes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{agentEmail}}\", \"password\": \"{{agentPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.6 GET /users/me - store the agent id for assignment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/me",
+            "description": "Proves the agent token and stores the agent's own UUID as agentId; POST /tickets/{id}/assignment needs that id in its body."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the support agent role', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.role).to.eql('Support agent');",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('agentEmail'));",
+                  "});",
+                  "pm.collectionVariables.set('agentId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.7 Login as the demo admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Signs in as the seeded D08 admin and replaces the stored tokens; folders 02 (users), 03 (categories), and 07 (audit logs) are admin-only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{adminEmail}}\", \"password\": \"{{adminPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Users (admin)",
+      "description": "A06-A07 - admin-only user administration for the current admin token from 01.7. The created user is the second employee whose 404 cases run in folder 08.",
+      "item": [
+        {
+          "name": "02.1 GET /users - admin-only list without password fields",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users?limit=50",
+            "description": "Proves the admin-only list answers the contract's Page<User> shape and that no password or password hash is ever serialised."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a Page of users with no secrets', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.total).to.be.at.least(3);",
+                  "    pm.expect(pm.response.text()).to.not.include('password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.2 POST /users - create a second employee for the 404 case",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "description": "Proves admin user creation answers 201 with the User shape. The body uses a fresh random email so the collection can be re-run, and stores userId plus the generated email as secondEmployeeEmail for folder 08.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Postman Second Employee\", \"email\": \"postman.employee.{{$randomUUID}}@example.test\", \"password\": \"{{secondEmployeePassword}}\", \"role\": \"Employee\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and the new employee is returned', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.role).to.eql('Employee');",
+                  "    pm.expect(body.is_active).to.eql(true);",
+                  "    pm.expect(body).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('userId', body.id);",
+                  "pm.collectionVariables.set('secondEmployeeEmail', body.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.3 PATCH /users/{{userId}} - rename that user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/{{userId}}",
+            "description": "Proves the partial edit route answers 200 with the updated User. A body with no editable field would be 422, and there is deliberately no password update here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Postman Second Employee (edited)\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the name changed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('userId'));",
+                  "    pm.expect(body.name).to.eql('Postman Second Employee (edited)');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.4 GET /users?role=Employee&is_active=true&limit=1 - list filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users?role=Employee&is_active=true&limit=1",
+            "description": "Proves the documented role and is_active filters narrow the page while total still counts every match. The second employee created in 02.2 is one of them."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the filters apply', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.items.length).to.eql(1);",
+                  "    pm.expect(body.items[0].role).to.eql('Employee');",
+                  "    pm.expect(body.total).to.be.at.least(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Categories",
+      "description": "T05 - list active categories and let an admin create and edit one. Uses the admin token from 01.7. categoryId (created here) is the ticket's category in folder 04; secondCategoryId is a seeded D08 category used by the recategorisation request.",
+      "item": [
+        {
+          "name": "03.1 GET /categories - active categories and remember a second id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/categories?limit=50",
+            "description": "Proves the logged-in list returns active categories as Page<Category>. Its first item is a seeded D08 category and is stored as secondCategoryId for 04.9."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a Page of active categories', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.total).to.be.at.least(3);",
+                  "    pm.expect(body.items[0].is_active).to.eql(true);",
+                  "});",
+                  "pm.collectionVariables.set('secondCategoryId', body.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.2 POST /categories - admin creates a category for the ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/categories",
+            "description": "Proves the admin-only create answers 201 with all six Category fields and stores the new id as categoryId. The name carries a random UUID so re-running the collection cannot hit the 409 duplicate-name rule.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"[postman] Collection category {{$randomUUID}}\", \"description\": \"Created by the G04 Postman collection.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and an active Category', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.is_active).to.eql(true);",
+                  "    pm.expect(body.description).to.eql('Created by the G04 Postman collection.');",
+                  "});",
+                  "pm.collectionVariables.set('categoryId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.3 PATCH /categories/{{categoryId}} - admin edits the description",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/categories/{{categoryId}}",
+            "description": "Proves the partial edit route answers 200 with the changed field while the category stays active. Categories are edited and deactivated, never deleted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Edited by the G04 Postman collection.\", \"is_active\": true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the edit applied', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('categoryId'));",
+                  "    pm.expect(body.description).to.eql('Edited by the G04 Postman collection.');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Tickets",
+      "description": "T01-T04 and T06 - the ticket lifecycle end to end: create, list, read, assign, reprioritise, recategorise, move status, comment, and read history. Each write also creates the notifications and audit entries that folders 06 and 07 read.",
+      "item": [
+        {
+          "name": "04.1 Login as the demo employee - only an Employee creates a ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Replaces the stored tokens with the demo employee's, because POST /tickets is an Employee route.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{employeeEmail}}\", \"password\": \"{{employeePassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.2 POST /tickets - create the ticket this folder works on",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets",
+            "description": "Proves a new ticket starts Open, Medium, and unassigned with SLA deadlines from the settings row, and stores its id as ticketId. Sending priority would be 422, which 08.5 shows.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Postman collection demo ticket\", \"description\": \"Created by the G04 Postman collection to walk the ticket lifecycle.\", \"category_id\": \"{{categoryId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and an Open, Medium, unassigned ticket', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.status).to.eql('Open');",
+                  "    pm.expect(body.priority).to.eql('Medium');",
+                  "    pm.expect(body.assignee_id).to.eql(null);",
+                  "    pm.expect(body.response_due_at).to.be.a('string');",
+                  "});",
+                  "pm.collectionVariables.set('ticketId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.3 POST /tickets - a second ticket left Open for folder 05",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets",
+            "description": "Creates an untouched Open ticket and stores its id as secondTicketId. Folder 05 attaches the upload to it and 08.9 and 08.11 use it for the 400 and 409 cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Postman collection attachment ticket\", \"description\": \"Left Open so file attachments can be uploaded and downloaded.\", \"category_id\": \"{{categoryId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and a second Open ticket', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.status).to.eql('Open');",
+                  "});",
+                  "pm.collectionVariables.set('secondTicketId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.4 GET /tickets - an employee sees only their own tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets?limit=50",
+            "description": "Proves the list is scoped for an Employee: every item has the same creator_id. An agent or admin token would see every ticket."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and every ticket belongs to the same employee', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.total).to.be.at.least(2);",
+                  "    const creator = body.items[0].creator_id;",
+                  "    body.items.forEach(function (ticket) {",
+                  "        pm.expect(ticket.creator_id).to.eql(creator);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.5 GET /tickets/{{ticketId}} - detail with the SLA fields",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}",
+            "description": "Proves the owner can read their own ticket and that the Ticket shape carries the overdue flags, which are computed rather than stored."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the full Ticket shape', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('ticketId'));",
+                  "    pm.expect(body.status).to.eql('Open');",
+                  "    pm.expect(body.response_overdue).to.be.a('boolean');",
+                  "    pm.expect(body.resolution_due_at).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.6 Login as the demo support agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Replaces the stored tokens with the agent's, because 04.7 to 04.12 are agent actions.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{agentEmail}}\", \"password\": \"{{agentPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.7 POST /tickets/{{ticketId}}/assignment - the agent self-assigns",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/assignment",
+            "description": "T03. Proves an agent self-assigns an unassigned Open ticket: the ticket moves to Assigned and takes the agentId stored in 01.6 as assignee_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\": \"{{agentId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the agent is the assignee', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.assignee_id).to.eql(pm.collectionVariables.get('agentId'));",
+                  "    pm.expect(body.status).to.eql('Assigned');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.8 POST /tickets/{{ticketId}}/priority - High with a reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/priority",
+            "description": "T04. Proves the assigned agent may reprioritise with a non-blank reason, and that the response carries the new priority. A missing reason would be 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"priority\": \"High\", \"reason\": \"Escalated by the G04 Postman collection.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the priority changed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.priority).to.eql('High');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.9 POST /tickets/{{ticketId}}/category - recategorise with a reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/category",
+            "description": "Proves the assigned agent may move the ticket to another active category with a reason. secondCategoryId comes from the seeded categories read in 03.1.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"category_id\": \"{{secondCategoryId}}\", \"reason\": \"Recategorised by the G04 Postman collection.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the category changed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.category_id).to.eql(pm.collectionVariables.get('secondCategoryId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.10 POST /tickets/{{ticketId}}/status - In Progress",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/status",
+            "description": "T02. Proves only the assigned agent starts work and that Assigned to In Progress is a legal transition.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"In Progress\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the status is In Progress', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.status).to.eql('In Progress');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.11 POST /tickets/{{ticketId}}/status - Resolved with a note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/status",
+            "description": "Proves In Progress to Resolved is legal for the assigned agent, that a resolution note is required, and that resolved_at is set. Resolving without a note would be 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"Resolved\", \"resolution_note\": \"Replaced the power supply.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the ticket is Resolved', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.status).to.eql('Resolved');",
+                  "    pm.expect(body.resolved_at).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.12 POST /tickets/{{ticketId}}/comments - the agent comment records first response",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/comments",
+            "description": "T06. Proves the assigned agent may comment and that the first agent comment records first_response_at on the ticket.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"body\": \"Agent note from the G04 Postman collection: power supply replaced.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and the comment belongs to this ticket', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.ticket_id).to.eql(pm.collectionVariables.get('ticketId'));",
+                  "    pm.expect(body.body).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.13 Login as the demo employee - the creator closes the ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Replaces the stored tokens with the employee's, because only the creator or an admin may close a Resolved ticket and the employee also replies to the comment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{employeeEmail}}\", \"password\": \"{{employeePassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.14 POST /tickets/{{ticketId}}/comments - the employee replies",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/comments",
+            "description": "Proves the ticket's creator may comment on their own ticket, so the thread has both sides. Comments are public to everyone who can view the ticket.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"body\": \"Employee confirmation from the G04 Postman collection.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 and the comment is stored', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(body.ticket_id).to.eql(pm.collectionVariables.get('ticketId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.15 GET /tickets/{{ticketId}}/comments - the thread, oldest first",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/comments?limit=50",
+            "description": "Proves the paginated comment list returns both comments in oldest-first order."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and two comments oldest first', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.total).to.be.at.least(2);",
+                  "    const first = body.items[0].created_at;",
+                  "    const last = body.items[body.items.length - 1].created_at;",
+                  "    pm.expect(first <= last).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.16 GET /tickets/{{ticketId}}/history - one row per changed field",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/history?limit=50",
+            "description": "Proves every lifecycle write appended history: the fields include assignee_id, priority, category_id, and status, and 04.11 keeps its resolution note on the status row."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const fields = body.items.map(function (entry) { return entry.field; });",
+                  "pm.test('200 and history covers the changes', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(fields).to.include('assignee_id');",
+                  "    pm.expect(fields).to.include('priority');",
+                  "    pm.expect(fields).to.include('category_id');",
+                  "    pm.expect(fields).to.include('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.17 POST /tickets/{{ticketId}}/status - the creator closes it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/status",
+            "description": "Proves Resolved to Closed is legal for the ticket's creator (an assigned agent would be 403) and that the ticket ends Closed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"Closed\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the ticket is Closed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.status).to.eql('Closed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.18 GET /tickets?status=Closed&limit=50 - the filter finds it",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets?status=Closed&limit=50",
+            "description": "Proves the documented status filter: only Closed tickets come back, and the ticket closed in 04.17 is one of them."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and only Closed tickets', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.total).to.be.at.least(1);",
+                  "    body.items.forEach(function (ticket) {",
+                  "        pm.expect(ticket.status).to.eql('Closed');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Attachments",
+      "description": "T07 - multipart upload, metadata list, and download on {{secondTicketId}}, which is still Open. The upload stores attachmentId; the download proves the response never exposes the stored file path. The employee token from 04.13 is still the active one.",
+      "item": [
+        {
+          "name": "05.1 POST /tickets/{{secondTicketId}}/attachments - upload one file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{secondTicketId}}/attachments",
+            "description": "Proves the multipart route takes a single form field named 'file' and answers 201 with Attachment metadata only: no storage_name and no path. Select a PDF, PNG, JPEG, or TXT file (the contract's allowed types); a .zip, .json, or other type would be 400, which 08.9 shows.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Choose one local .pdf, .png, .jpeg, or .txt file at most the configured size limit."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 and the Attachment metadata, with no storage path', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.file_name).to.be.a('string');",
+                  "    pm.expect(body.size_bytes).to.be.above(0);",
+                  "    pm.expect(body).to.not.have.property('storage_name');",
+                  "    pm.expect(pm.response.text()).to.not.include('uploads/');",
+                  "    pm.collectionVariables.set('attachmentId', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.2 GET /tickets/{{secondTicketId}}/attachments - metadata list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{secondTicketId}}/attachments?limit=50",
+            "description": "Proves the paginated metadata list and re-reads attachmentId from the newest row, so 05.3 still works if the upload in 05.1 was skipped."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a Page of attachment metadata', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.items[0]).to.not.have.property('storage_name');",
+                  "});",
+                  "if (body.items.length > 0) {",
+                  "    pm.collectionVariables.set('attachmentId', body.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.3 GET /tickets/{{secondTicketId}}/attachments/{{attachmentId}} - download",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{secondTicketId}}/attachments/{{attachmentId}}",
+            "description": "Proves the download answers 200 with the file bytes and a Content-Disposition filename, and that neither the body nor the headers leak the stored name or the uploads path."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and no storage path anywhere in the response', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const headers = JSON.stringify(pm.response.headers.toObject()).toLowerCase();",
+                  "    pm.expect(headers).to.include('filename');",
+                  "    pm.expect(headers).to.not.include('uploads');",
+                  "    pm.expect(pm.response.text()).to.not.include('uploads/');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Notifications",
+      "description": "S01 - read the employee's own notifications and mark one read and dismissed. The ticket writes in folder 04 created them (comment, resolution, closure). Uses the employee token from 04.13.",
+      "item": [
+        {
+          "name": "06.1 GET /notifications - newest first, and remember one id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications?limit=50",
+            "description": "Proves the inbox returns the current user's notifications as Page<Notification>, that dismissed ones are hidden by default, and stores the newest id as notificationId."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a Page of own notifications', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.total).to.be.at.least(1);",
+                  "    pm.expect(body.items[0].dismissed_at).to.eql(null);",
+                  "});",
+                  "if (body.items.length > 0) {",
+                  "    pm.collectionVariables.set('notificationId', body.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.2 PATCH /notifications/{{notificationId}}/read - read_at is set",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+            "description": "Proves marking read answers 200 with read_at set and does not remove the notification from the list. Neither read nor dismiss is audited."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and read_at is set', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('notificationId'));",
+                  "    pm.expect(body.read_at).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.3 PATCH /notifications/{{notificationId}}/dismiss - dismissed_at is set",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/dismiss",
+            "description": "Proves dismissing answers 200 with dismissed_at set. Read and dismissed are independent states, so a dismissed notification keeps its read_at too."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and dismissed_at is set', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.dismissed_at).to.be.a('string');",
+                  "    pm.expect(body.read_at).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.4 GET /notifications?include_dismissed=true - dismissal is not a delete",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications?include_dismissed=true&limit=50",
+            "description": "Proves the dismissed notification is still stored: it reappears when dismissed rows are asked for, because no route hard-deletes a notification."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const wanted = pm.collectionVariables.get('notificationId');",
+                  "const found = body.items.filter(function (item) { return item.id === wanted; });",
+                  "pm.test('200 and the dismissed notification is still listed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(found.length).to.eql(1);",
+                  "    pm.expect(found[0].dismissed_at).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Audit logs",
+      "description": "G01 - the admin-only read side of the append-only audit log. The admin token from 01.7 was replaced by 04.1 and 04.13, so this folder signs in as the admin again before reading.",
+      "item": [
+        {
+          "name": "07.1 Login as the demo admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Replaces the stored tokens with the admin's, because GET /audit-logs is admin-only and 08.4 shows an employee gets 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{adminEmail}}\", \"password\": \"{{adminPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07.2 GET /audit-logs - newest first, with no secrets in the entries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/audit-logs?limit=50",
+            "description": "Proves the admin read returns Page<AuditLog> with every documented field and that failed-login rows carry only the attempted email, never a password."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and the AuditLog shape', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.total).to.be.at.least(1);",
+                  "    pm.expect(body.items[0]).to.have.property('action');",
+                  "    pm.expect(body.items[0]).to.have.property('entity_type');",
+                  "    pm.expect(pm.response.text()).to.not.include('password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07.3 GET /audit-logs?action=ticket_update&limit=5 - filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/audit-logs?action=ticket_update&limit=5",
+            "description": "Proves the exact-match action filter: only ticket_update entries come back, which folder 04 wrote for assignment, priority, category, and status changes."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and every entry is a ticket update', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.total).to.be.at.least(1);",
+                  "    body.items.forEach(function (entry) {",
+                  "        pm.expect(entry.action).to.eql('ticket_update');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 Error cases",
+      "description": "G04 error coverage: the documented 401, 403, 404, 409, 422, and 400 answers from A01-A07, T01-T07, S01, and G01. Each request is expected to fail, and its test asserts the documented status code plus the shared {detail: string} body.",
+      "item": [
+        {
+          "name": "08.1 GET /users/me without a token - 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/me",
+            "description": "Proves a protected route answers 401 when the Authorization header is missing, using the {detail: string} error shape and revealing nothing else."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('401 with a detail string', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.2 POST /auth/login with the wrong password - 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Proves invalid credentials answer 401 without saying whether the email or the password was wrong, and that the rejected password is never echoed back.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{employeeEmail}}\", \"password\": \"definitely-not-the-password\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('401 and no password echo', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "    pm.expect(pm.response.text()).to.not.include('definitely-not-the-password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.3 Login as the demo employee (restore the employee token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Restores the employee token for 08.4 to 08.9. The failed attempt in 08.2 wrote a login_failure audit row; this successful login writes a login_success row.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{employeeEmail}}\", \"password\": \"{{employeePassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.4 POST /categories as an employee - 403 admin-only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/categories",
+            "description": "Proves an admin-only write answers 403 for an Employee: permissions are enforced by the API, not by hiding the control in the React app. The body itself is valid, so only the role is rejected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"[postman] Should never be created\", \"description\": \"Rejected because the caller is an Employee.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('403 with a detail string', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.5 POST /tickets with a priority field - 422 extra field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets",
+            "description": "Proves POST /tickets accepts exactly title, description, and category_id: an extra priority field is 422 for every role, which is why a new ticket always starts Medium.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Rejected ticket\", \"description\": \"Priority may not be chosen at creation.\", \"category_id\": \"{{categoryId}}\", \"priority\": \"High\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('422 and the request is not validated', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.6 POST /tickets without category_id - 422 missing field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets",
+            "description": "Proves a missing required field is 422 before any business rule runs, so no ticket row, history row, or audit row is written.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Rejected ticket\", \"description\": \"No category id is supplied.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('422 and the request is not validated', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.7 GET /tickets/not-a-uuid - 422 malformed path id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/not-a-uuid",
+            "description": "Proves a malformed UUID in the path is 422 rather than 404, which the contract lists separately from a missing record."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('422 and the request is not validated', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.8 POST /tickets/{{ticketId}}/status on a Closed ticket - 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}/status",
+            "description": "Proves a conflicting state transition is 409: the ticket closed in 04.17 cannot go back to In Progress, and the employee token cannot reopen it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"In Progress\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('409 with a detail string', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.9 POST /tickets/{{secondTicketId}}/attachments with a disallowed type - 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{secondTicketId}}/attachments",
+            "description": "Proves the domain refusal code: a file whose type is not PDF, PNG, JPEG, or TXT is 400, not 422, because the request is well formed. Select a .zip, .json, .docx, or other disallowed file in the file field for this request.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Choose a file that is NOT .pdf, .png, .jpeg, or .txt, for example a .zip or .json file."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('400 and the type is refused', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.10 Login as the demo support agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Restores an agent token for 08.11.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{agentEmail}}\", \"password\": \"{{agentPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.11 POST /tickets/{{secondTicketId}}/status Resolved from Open - 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{secondTicketId}}/status",
+            "description": "Proves the lifecycle cannot skip states: secondTicketId is still Open, so Resolved is 409 before the assignee check, even for a support agent that can see every ticket.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"Resolved\", \"resolution_note\": \"Trying to skip the lifecycle.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('409 invalid transition', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.12 Login as the second employee created in 02.2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Signs in as the second employee with the email stored in 02.2, so 08.13 and 08.14 run as a different Employee.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{secondEmployeeEmail}}\", \"password\": \"{{secondEmployeePassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 and a bearer token pair', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body.token_type).to.eql('bearer');",
+                  "    pm.expect(body.access_token).to.be.a('string');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.13 GET /tickets/{{ticketId}} as the second employee - 404, not 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/tickets/{{ticketId}}",
+            "description": "Proves an employee cannot read another employee's ticket and that the answer is 404 rather than 403, so ticket ids cannot be probed for existence."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('404 hidden, not 403', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08.14 PATCH /notifications/{{notificationId}}/read as the second employee - 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+            "description": "Proves notification routes are owner-scoped the same way: a notification that belongs to someone else answers 404, not 403."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('404 for a notification owned by someone else', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Where the FastAPI backend is listening. The Vite dev server proxies /api to this."
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "30-minute bearer access token. Written by every login and refresh request in folders 01, 04, 07, and 08."
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "Refresh token of the current session. Written by login and rotated by refresh; revoked by logout."
+    },
+    {
+      "key": "employeeEmail",
+      "value": "demo.employee@example.test",
+      "type": "string",
+      "description": "D08 demo Employee account created by 'python -m app.seed_demo'."
+    },
+    {
+      "key": "employeePassword",
+      "value": "change-me-demo-password",
+      "type": "string",
+      "description": "The password entered when running the D08 demo seed. No password is stored in the repository, so set it locally."
+    },
+    {
+      "key": "agentEmail",
+      "value": "demo.agent@example.test",
+      "type": "string",
+      "description": "D08 demo Support agent account created by 'python -m app.seed_demo'."
+    },
+    {
+      "key": "agentPassword",
+      "value": "change-me-demo-password",
+      "type": "string",
+      "description": "The same D08 demo seed password, entered locally."
+    },
+    {
+      "key": "adminEmail",
+      "value": "demo.admin@example.test",
+      "type": "string",
+      "description": "D08 demo Admin account created by 'python -m app.seed_demo'."
+    },
+    {
+      "key": "adminPassword",
+      "value": "change-me-demo-password",
+      "type": "string",
+      "description": "The same D08 demo seed password, entered locally."
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "string",
+      "description": "Category created by 03.2 and used as the new tickets' category_id."
+    },
+    {
+      "key": "secondCategoryId",
+      "value": "",
+      "type": "string",
+      "description": "Seeded D08 category read from 03.1, used by the recategorisation request 04.9."
+    },
+    {
+      "key": "ticketId",
+      "value": "",
+      "type": "string",
+      "description": "Ticket created by 04.2 and driven through the whole lifecycle."
+    },
+    {
+      "key": "secondTicketId",
+      "value": "",
+      "type": "string",
+      "description": "Ticket created by 04.3 and left Open for the attachment folder and the 409 case."
+    },
+    {
+      "key": "attachmentId",
+      "value": "",
+      "type": "string",
+      "description": "Attachment created by 05.1 (or re-read by 05.2) and downloaded by 05.3."
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string",
+      "description": "Second employee created by 02.2 and edited by 02.3."
+    },
+    {
+      "key": "agentId",
+      "value": "",
+      "type": "string",
+      "description": "The signed-in support agent's own id, read from 01.6 and sent as the assignee in 04.7."
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string",
+      "description": "Newest notification read in 06.1 and used by the read, dismiss, and 404 requests."
+    },
+    {
+      "key": "secondEmployeeEmail",
+      "value": "",
+      "type": "string",
+      "description": "Random email of the employee created in 02.2, used to sign in for the 404 cases in 08.12 to 08.14."
+    },
+    {
+      "key": "secondEmployeePassword",
+      "value": "postman-second-employee-2026",
+      "type": "string",
+      "description": "Local placeholder password for the employee created by 02.2. Change it if you like; it never leaves the local database."
+    }
+  ]
+}

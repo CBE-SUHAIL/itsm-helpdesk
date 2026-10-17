@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     jwt_secret: str = ""
 
+    # T07 attachments. Bytes are written under this directory, which no static
+    # route serves, so uploaded files stay outside the web app entirely. Unset
+    # means `var/uploads` beside the repository root; a relative value is
+    # resolved against the root rather than the process working directory, so
+    # the same .env works from any shell. The directory is gitignored and
+    # created on first upload.
+    upload_dir: Path | None = None
+
+    @property
+    def upload_root(self) -> Path:
+        """Where attachment bytes live, as an absolute path."""
+        if self.upload_dir is None:
+            return ROOT_DIR / "var" / "uploads"
+        return self.upload_dir if self.upload_dir.is_absolute() else ROOT_DIR / self.upload_dir
+
     @property
     def database_url(self) -> str:
         """Built from the POSTGRES_* parts so credentials cannot drift.
