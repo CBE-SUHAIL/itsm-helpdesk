@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.schemas import NotificationOut, NotificationPage
 from app.core.db import get_db
 from app.core.security import current_user
+from app.core.notify import scan_sla_breaches
 from app.models import Notification, User
 from app.models.role import utc_now
 
@@ -62,6 +63,7 @@ def list_notifications(
     `unread_only` filters on `read_at`, which is independent of dismissal, so
     "unread and not dismissed" is the default inbox view.
     """
+    scan_sla_breaches(session)
     where = [Notification.recipient_id == user.id]
     if not include_dismissed:
         where.append(Notification.dismissed_at.is_(None))

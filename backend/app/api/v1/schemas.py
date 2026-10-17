@@ -18,7 +18,9 @@ from app.models import (
     AuditLog,
     Category,
     Comment,
+    KnowledgeArticle,
     Notification,
+    SystemSetting,
     Ticket,
     TicketHistory,
     User,
@@ -388,6 +390,116 @@ class AttachmentOut(StrictModel):
 class AttachmentPage(StrictModel):
     items: list[AttachmentOut]
     total: int
+
+
+# --- Knowledge base, reports, and settings ---------------------------------
+
+
+class ArticleOut(StrictModel):
+    id: UUID
+    title: str
+    body: str
+    category_id: UUID
+    author_id: UUID
+    is_published: bool
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_article(cls, article: KnowledgeArticle) -> "ArticleOut":
+        return cls(
+            id=article.id, title=article.title, body=article.body,
+            category_id=article.category_id, author_id=article.author_id,
+            is_published=article.is_published, created_at=article.created_at,
+            updated_at=article.updated_at,
+        )
+
+
+class ArticlePage(StrictModel):
+    items: list[ArticleOut]
+    total: int
+
+
+class CreateArticleIn(StrictModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1)
+    category_id: UUID
+
+    @field_validator("title", "body")
+    @classmethod
+    def clean_text(cls, value: str) -> str:
+        return _strip_not_blank(value)
+
+
+class UpdateArticleIn(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    body: str | None = Field(default=None, min_length=1)
+    category_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def nonempty(self):
+        if not self.model_fields_set or any(
+            getattr(self, field) is None for field in self.model_fields_set
+        ):
+            raise ValueError("At least one non-null field is required")
+        return self
+
+    @field_validator("title", "body")
+    @classmethod
+    def clean_text(cls, value: str | None) -> str | None:
+        return _strip_not_blank(value) if value is not None else None
+
+
+class PublishArticleIn(StrictModel):
+    published: bool
+
+
+class SlaTarget(StrictModel):
+    first_response_hours: int
+    resolution_hours: int
+
+
+class SlaTargets(StrictModel):
+    Low: SlaTarget
+    Medium: SlaTarget
+    High: SlaTarget
+    Critical: SlaTarget
+
+
+class SettingsOut(StrictModel):
+    sla_targets: SlaTargets
+    max_attachment_bytes: int
+    allowed_attachment_types: list[str]
+
+    @classmethod
+    def from_settings(cls, settings: SystemSetting) -> "SettingsOut":
+        return cls(
+            sla_targets=settings.sla_targets,
+            max_attachment_bytes=settings.max_attachment_bytes,
+            allowed_attachment_types=settings.allowed_attachment_types,
+        )
+
+
+class UpdateSettingsIn(StrictModel):
+    sla_targets: SlaTargets | None = None
+    max_attachment_bytes: int | None = None
+    allowed_attachment_types: list[str] | None = None
+
+    @model_validator(mode="after")
+    def nonempty(self):
+        if not self.model_fields_set or any(
+            getattr(self, field) is None for field in self.model_fields_set
+        ):
+            raise ValueError("At least one non-null field is required")
+        return self
+
+
+class DashboardOut(StrictModel):
+    counts_by_status: dict[str, int]
+    counts_by_priority: dict[str, int]
+    response_overdue_count: int
+    resolution_overdue_count: int
+    agent_workload: dict[str, int] | None
 
 
 # --- S01 and G01: notifications and audit reads -----------------------------

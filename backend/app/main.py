@@ -7,17 +7,20 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     attachments,
+    articles,
     audit_logs,
     auth,
     categories,
     health,
     notifications,
+    reporting,
+    settings,
     tickets,
     users,
 )
 from app.core.config import get_settings
 
-settings = get_settings()
+app_settings = get_settings()
 
 # G03: what /docs shows. Each tag groups the routes the contract lists together,
 # so a reviewer can find a route by the thing it acts on.
@@ -46,6 +49,9 @@ TAGS = [
         "description": "Read, mark read, and dismiss your own notifications (S01).",
     },
     {"name": "audit", "description": "Admin-only read of the append-only audit log (G01)."},
+    {"name": "articles", "description": "Published knowledge articles and role-scoped drafts."},
+    {"name": "reporting", "description": "Role-scoped dashboard and CSV/PDF ticket reports."},
+    {"name": "settings", "description": "Admin-only SLA and attachment settings."},
 ]
 
 DESCRIPTION = """
@@ -84,7 +90,7 @@ app = FastAPI(
 # frontend served from a different origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
+    allow_origins=[app_settings.frontend_origin],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,3 +111,6 @@ app.include_router(tickets.router, prefix="/api/v1")
 app.include_router(attachments.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(audit_logs.router, prefix="/api/v1")
+app.include_router(articles.router, prefix="/api/v1")
+app.include_router(reporting.router, prefix="/api/v1")
+app.include_router(settings.router, prefix="/api/v1")

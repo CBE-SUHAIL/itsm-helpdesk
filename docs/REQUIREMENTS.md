@@ -71,6 +71,11 @@ applied at creation, so later settings changes do not rewrite old deadlines.
 A breach marks the ticket overdue, appears on dashboards/reports, and creates
 an in-app notification for the assignee or admins. It does not automatically
 change priority, status, or assignee.
+For the local-only demo, the notification inbox checks for newly elapsed
+deadlines when requested and records one alert per ticket/recipient. Thus an
+alert is delivered on the next inbox poll after a deadline, not while the
+entire app is stopped. The derived overdue flags in tickets and reports remain
+accurate regardless of polling.
 
 ## Audit history
 
@@ -130,6 +135,10 @@ app is optional in v1, because S02's own done-when asks only for read.
   and assignee and export results as CSV or PDF. Employees use their own-ticket
   dashboard rather than the support report.
 - Settings: admin edits SLA targets and attachment limits; changes are audited.
+- Categories: admins may include inactive categories in their list and
+  reactivate them; other users see active choices only. Deactivating even the
+  last active category is allowed and intentionally pauses new ticket intake
+  until an admin reactivates or creates one.
 
 ## System boundaries
 

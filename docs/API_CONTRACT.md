@@ -1,12 +1,8 @@
 # API contract (F02 baseline; F06 shapes confirmed 14 October 2026)
 
-This is the shared agreement between the React app and FastAPI backend. A01–A07
-implement the authentication and user routes below; T01–T04 and T06 implement
-the ticket routes (create, read, assignment, status, priority, category,
-comments, and history); T05 implements the three category routes; T07 implements
-attachment upload, listing, and download; S01 implements the notification read,
-mark-read, and dismiss routes; and G01 implements audit-log reading. Articles,
-reports, and settings remain planned. If the team changes a route or rule, update
+This is the shared agreement between the React app and FastAPI backend. All
+listed routes are now implemented, including knowledge articles, dashboard,
+CSV/PDF reports, settings, and audit reading. If the team changes a route or rule, update
 this file, the requirements, and affected tests in the same commit. FastAPI's
 generated OpenAPI page at `/docs` must match the implemented contract.
 
@@ -17,7 +13,7 @@ fields, response fields, and error codes, and that both people agree on them.
 The F06 additions below were reviewed and approved by Kavin in pull request
 [#6](https://github.com/CBE-SUHAIL/itsm-helpdesk/pull/6) on 14 October 2026 and
 are the agreed request/response/error shapes. The auth, user, and ticket-core
-portions are now implemented; the remaining shapes are planned. D06 resolves the
+portions are now implemented. D06 resolves the
 `Article` category gap by reusing `categories`, as
 recorded at the end of this file.
 
@@ -92,10 +88,10 @@ registration endpoint. User deactivation preserves linked ticket history.
 
 | Method and route | Who | Request fields | Success response | Errors |
 | --- | --- | --- | --- | --- |
-| `GET /categories` | Logged-in user | Query `limit`, `offset`; no body. Active categories only | `200` `Page<Category>` | `401`, `422` |
+| `GET /categories` | Logged-in user | Query `limit`, `offset`, optional `include_inactive` (default false; true is Admin-only); no body. Active categories by default | `200` `Page<Category>` | `401`, `403`, `422` |
 | `POST /categories` | Admin | JSON `name`, `description` | `201` `Category` | `400` invalid business input; `401`, `403`; `409` duplicate name; `422` invalid fields |
 | `PATCH /categories/{id}` | Admin | Path `id`; JSON any nonempty subset of `name`, `description`, `is_active` | `200` `Category` | `400` invalid business input; `401`, `403`, `404`; `409` duplicate name; `422` invalid fields |
-| `GET /tickets` | Logged-in user | Query `limit`, `offset`, optional `status`, `priority`, `category_id`, `assignee_id`, `created_from`, `created_to`; no body. Employees see own tickets only | `200` `Page<Ticket>` | `401`, `422` |
+| `GET /tickets` | Logged-in user | Query `limit`, `offset`, optional `status`, `priority`, `category_id`, `assignee_id`, `created_from`, `created_to`, `q` (title/description search); no body. Employees see own tickets only | `200` `Page<Ticket>` | `401`, `422` |
 | `POST /tickets` | Employee | JSON exactly `title`, `description`, `category_id`; `priority` is forbidden | `201` `Ticket` with Open, Medium, and null assignee | `400` inactive category; `401`, `403`, `404` category missing; `422` invalid or extra fields |
 | `GET /tickets/{id}` | Ticket owner, agent, admin | Path `id`; no body or query | `200` `Ticket` with current SLA fields | `401`, `404` missing or inaccessible, `422` |
 | `POST /tickets/{id}/assignment` | Agent self-assigning an unassigned Open ticket; admin for Open/Assigned/In Progress | Path `id`; JSON `assignee_id` (UUID or null). Null is admin-only | `200` updated `Ticket` | `400` invalid assignee; `401`, `403`, `404`; `409` invalid ticket state; `422` |
@@ -142,7 +138,7 @@ agent notes in v1. No comment, attachment, or article hard-delete route in v1.
 
 | Method and route | Who | Request fields | Success response | Errors |
 | --- | --- | --- | --- | --- |
-| `GET /notifications` | Logged-in user | Query `limit`, `offset`, optional `include_dismissed` (default false), `unread_only` (default false); no body | `200` `Page<Notification>` for current user, newest first | `401`, `422` |
+| `GET /notifications` | Logged-in user | Query `limit`, `offset`, optional `include_dismissed` (default false), `unread_only` (default false); no body | `200` `Page<Notification>` for current user, newest first; also checks for missed SLA deadlines | `401`, `422` |
 | `PATCH /notifications/{id}/read` | Notification owner | Path `id`; no body | `200` updated `Notification` with `read_at` set; remains listed | `401`, `404` missing or not owned, `422` |
 | `PATCH /notifications/{id}/dismiss` | Notification owner | Path `id`; no body | `200` updated `Notification` with `dismissed_at` set; hidden from default list | `401`, `404` missing or not owned, `422` |
 | `GET /dashboard/summary` | Logged-in user | No body or query | `200` `{counts_by_status, counts_by_priority, response_overdue_count, resolution_overdue_count, agent_workload}`; count maps use status/priority labels and integer values; `agent_workload` maps agent UUIDs to integer counts for agent/admin, or is null for employee | `401` |
@@ -152,8 +148,12 @@ agent notes in v1. No comment, attachment, or article hard-delete route in v1.
 | `GET /audit-logs` | Admin | Query `limit`, `offset`, optional `actor_id`, `action`, `entity_type`, `entity_id`, `created_from`, `created_to`; no body | `200` `Page<AuditLog>` newest first | `401`, `403`, `422` |
 
 The frontend polls relevant ticket and notification endpoints every 15 seconds
-while open. SLA breach detection may run in a local periodic backend worker;
-it must create each breach notification only once. All data remains local.
+while open. In this local deployment, listing notifications scans elapsed SLA
+deadlines and creates at most one breach notice per ticket and recipient. The
+scan uses a PostgreSQL transaction lock to avoid duplicates from simultaneous
+polls. It is request-driven, so a breach that occurs while no one is using the
+app is delivered at the next inbox request, not exactly at the deadline. All
+data remains local.
 
 ### Notification read and dismiss
 

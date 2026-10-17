@@ -10,6 +10,7 @@ psycopg[binary]>=3.2
 PyJWT>=2.9,<3
 # T07 attachment uploads are multipart forms; FastAPI needs this to parse them.
 python-multipart>=0.0.18
+reportlab>=4.0
 
 # Test tooling (G05 owns the full suite; this is the F03/F04 smoke test).
 pytest>=8.3
