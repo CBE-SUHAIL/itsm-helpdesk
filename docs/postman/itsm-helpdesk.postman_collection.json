@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0f3e4d2a-1c5b-4a7e-9d10-2b8c6f5a4e31",
     "name": "ITSM Helpdesk API (G04)",
-    "description": "G04 - Postman API test collection for the local ITSM helpdesk backend. It covers every route mounted in backend/app/main.py (health, auth, users, categories, tickets, ticket attachments, notifications, and audit logs) and follows docs/API_CONTRACT.md, the agreed source of truth for request fields, response fields, and error codes.\n\nHow to use it: start the backend at http://localhost:8000, run 'alembic upgrade head' and the D08 demo seed ('python -m app.seed_demo'), then run the folders in order. Each login request writes accessToken and refreshToken, and each create request writes the id (categoryId, ticketId, secondTicketId, userId, attachmentId, notificationId) that later requests use. The demo password variables must be set to the password you typed for the D08 seed; no password is stored in the repository.\n\nThe two attachment requests need a local file chosen in the form field named 'file' (05.1 an allowed type, 08.9 a disallowed type).\n\nPlanned but unimplemented routes are deliberately absent because backend/app/api/v1/ does not mount them: articles, dashboard, reports, settings, and the React-only rows.",
+    "description": "G04 - Postman API test collection for the local ITSM helpdesk backend. Folders 00-08 exercise the core API; folder 09 covers the final knowledge-base, dashboard, reporting, and settings routes. Run the D08 demo seed and set local password variables before running folders in order. The attachment requests need a local file. No secrets are stored in this repository.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -2344,6 +2344,67 @@
           ]
         }
       ]
+    },
+    {
+      "name": "09 Final architecture routes",
+      "description": "Use the demo admin account to exercise settings, article publication, dashboard, and CSV/PDF export. Reuses categoryId from folder 03.",
+      "item": [
+        {
+          "name": "09.1 Login as admin",
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "url": "{{baseUrl}}/api/v1/auth/login", "body": {"mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"password\":\"{{adminPassword}}\"}"}},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.collectionVariables.set('accessToken', pm.response.json().access_token);"]}}]
+        },
+        {
+          "name": "09.2 GET /settings",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/settings"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().sla_targets).to.be.an('object');"]}}]
+        },
+        {
+          "name": "09.3 PATCH /settings - keep a valid limit",
+          "request": {"method": "PATCH", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}, {"key": "Content-Type", "value": "application/json"}], "url": "{{baseUrl}}/api/v1/settings", "body": {"mode": "raw", "raw": "{\"max_attachment_bytes\":10485760}"}},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().max_attachment_bytes).to.eql(10485760);"]}}]
+        },
+        {
+          "name": "09.4 POST /articles - draft",
+          "request": {"method": "POST", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}, {"key": "Content-Type", "value": "application/json"}], "url": "{{baseUrl}}/api/v1/articles", "body": {"mode": "raw", "raw": "{\"title\":\"Postman password help\",\"body\":\"Contact support to reset your password.\",\"category_id\":\"{{categoryId}}\"}"}},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "pm.collectionVariables.set('articleId', pm.response.json().id);"]}}]
+        },
+        {
+          "name": "09.5 GET /articles and /articles/{id} - use the next request for detail",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/articles?q=Postman"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().items).to.be.an('array');"]}}]
+        },
+        {
+          "name": "09.6 GET /articles/{id}",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/articles/{{articleId}}"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('articleId'));"]}}]
+        },
+        {
+          "name": "09.7 PATCH /articles/{id}",
+          "request": {"method": "PATCH", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}, {"key": "Content-Type", "value": "application/json"}], "url": "{{baseUrl}}/api/v1/articles/{{articleId}}", "body": {"mode": "raw", "raw": "{\"body\":\"Use the internal portal or contact support.\"}"}},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().body).to.include('internal portal');"]}}]
+        },
+        {
+          "name": "09.8 POST /articles/{id}/publish",
+          "request": {"method": "POST", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}, {"key": "Content-Type", "value": "application/json"}], "url": "{{baseUrl}}/api/v1/articles/{{articleId}}/publish", "body": {"mode": "raw", "raw": "{\"published\":true}"}},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().is_published).to.eql(true);"]}}]
+        },
+        {
+          "name": "09.9 GET /dashboard/summary",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/dashboard/summary"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().counts_by_status).to.be.an('object');"]}}]
+        },
+        {
+          "name": "09.10 GET /reports/tickets CSV",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/reports/tickets?format=csv"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv');"]}}]
+        },
+        {
+          "name": "09.11 GET /reports/tickets PDF",
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}], "url": "{{baseUrl}}/api/v1/reports/tickets?format=pdf"},
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf');"]}}]
+        }
+      ]
     }
   ],
   "variable": [
@@ -2430,6 +2491,12 @@
       "value": "",
       "type": "string",
       "description": "Attachment created by 05.1 (or re-read by 05.2) and downloaded by 05.3."
+    },
+    {
+      "key": "articleId",
+      "value": "",
+      "type": "string",
+      "description": "Draft article created by 09.4 and used by later article requests."
     },
     {
       "key": "userId",

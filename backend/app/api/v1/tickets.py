@@ -19,7 +19,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas import (
@@ -162,6 +162,7 @@ def list_tickets(
     assignee_id: UUID | None = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
+    q: str | None = Query(default=None, max_length=200),
     user: User = Depends(current_user),
     session: Session = Depends(get_db),
 ) -> TicketPage:
@@ -181,6 +182,9 @@ def list_tickets(
         where.append(Ticket.created_at >= created_from)
     if created_to is not None:
         where.append(Ticket.created_at <= created_to)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        where.append(or_(Ticket.title.ilike(term), Ticket.description.ilike(term)))
 
     total = (
         session.scalar(select(func.count()).select_from(Ticket).where(*where)) or 0

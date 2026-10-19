@@ -1,6 +1,6 @@
 # IT Helpdesk and Service Management System
 
-An internship project built by Suhail and Kavin. The planned system follows the
+An internship project built by Suhail and Kavin. The system follows the
 ITSM architecture workbook: a React web app, FastAPI services, SQLAlchemy, and
 PostgreSQL, all running locally.
 
@@ -44,24 +44,15 @@ under [Verify it works](#verify-it-works) and the
 
 ## Current status
 
-F03 and F04 are scaffolded: the React app, the FastAPI backend, and a local
-PostgreSQL container all start from the commands below. F05 adds the Alembic
-migration chain. D01 adds the `roles` and `users` tables, D02 adds
-`categories` and `tickets`, D03 adds `comments` and `ticket_history`, D04 adds
-`attachments` and `audit_logs`, and D05 adds `notifications` and
-`system_settings` plus the seeded settings row. D06 adds `knowledge_articles`;
-A02 adds `refresh_tokens`. D08 adds an opt-in demo seed. Schema
-decisions and the table-to-task map are in
-[docs/DATA_MODEL.md](docs/DATA_MODEL.md). D07 adds no table: it wires up the ORM
-relationships between the original eleven and the session handling in `app/core/db.py`.
-The implemented API routes are health; login, refresh, logout, and current user;
-admin user management (A01–A07); the ticket core — create, read, assignment,
-status, priority, category change, comments, and history (T01–T04, T06);
-category management (T05); attachment upload, listing, and download (T07);
-notification listing, mark-read, and dismiss (S01); and the admin-only audit-log
-read (G01). Articles, dashboards, reports, and settings arrive with later tasks,
-so those contract routes are still planned. React has login, a protected
-workspace, and an admin user screen; ticket pages are still future work.
+The local app now covers the architecture end to end: authentication and role
+checks; employee ticket intake; agent assignment and resolution; category,
+priority, SLA, comment, attachment, and history flows; notifications and
+knowledge articles; dashboards and CSV/PDF reports; and admin user, category,
+settings, and audit screens. PostgreSQL migrations, API tests, and a local demo
+seed are included. Schema decisions and the table-to-task map are in
+[docs/DATA_MODEL.md](docs/DATA_MODEL.md); route details are in
+[docs/API_CONTRACT.md](docs/API_CONTRACT.md). The guided walkthrough is in
+[docs/DEMO.md](docs/DEMO.md).
 
 ## Stack
 
@@ -202,14 +193,20 @@ Open http://localhost:5173.
 | Database is running | `docker compose ps` | `... (healthy)` |
 | Migration chain is at head | `cd backend && alembic current` | `20261015_a02_refresh_tokens (head)` |
 | API reaches the database | `curl http://localhost:8000/api/v1/health` | `{"status":"ok","database":"ok"}` |
-| Backend tests | `cd backend && pytest -q` | All tests pass |
+| Backend tests | `cd backend && python run_tests.py -q` | All tests pass in a fresh temporary database; demo data stays untouched |
 | API documentation is complete | open http://localhost:8000/docs | Every route has a summary, a tag, and a bearer padlock |
 | Frontend reaches the API | open http://localhost:5173 | Sign-in screen; a seeded account can log in |
+| Frontend quality checks | `cd frontend && npm run build && npm run lint` | Both commands pass |
 
 `GET /api/v1/health` answers `503` with
 `{"status":"degraded","database":"unavailable"}` when PostgreSQL is
 unreachable, so a broken dependency is visible rather than hidden behind a 200.
-The pytest test is an integration test: start the database first.
+The pytest suite uses PostgreSQL: start the database first. Use the isolated
+`run_tests.py` runner, not bare `pytest`, after seeding demo data. Some older
+tests assume a fresh database. The runner creates a random `itsm_test_*`
+database, runs the suite there, and removes that temporary database even if
+tests fail; it never clears your demo database. The local Compose `itsm` role
+has the database-creation permission this requires.
 
 ## Project structure
 

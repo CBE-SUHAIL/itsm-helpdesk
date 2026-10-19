@@ -13,15 +13,16 @@ the same flows, visible request by request.
    `agentPassword`, and `adminPassword` to the password you entered when the D08
    seed asked for one. No password is stored in this repository, and the
    placeholder values here are not real credentials.
-4. Run the folders in order, **00** to **08**. Earlier folders write the ids the
+4. Run the folders in order, **00** to **09**. Earlier folders write the ids the
    later ones use (`categoryId`, `ticketId`, `secondTicketId`, `attachmentId`,
    `notificationId`), so a folder run on its own may have nothing to act on.
    Requests can also be run one at a time; 01 signs in as each role and stores
    that role's token in `accessToken`.
 
 You can run the whole collection with the Collection Runner. Folder **08** is
-expected to fail its assertions if the API is changed without the contract:
-those requests assert the documented `400`, `401`, `403`, `404`, `409`, and `422`.
+the negative-case suite: its requests pass only when the API returns the
+documented `400`, `401`, `403`, `404`, `409`, and `422`. Folder **09** logs back
+in as admin and exercises articles, settings, dashboard, and CSV/PDF export.
 
 ## Two requests need a file
 
@@ -31,8 +32,6 @@ before sending: any `.txt`, `.pdf`, `.png`, or `.jpeg` for `05.1`, and anything
 else (for example a `.zip` or `.json`) for `08.9`. A local path is deliberately
 not committed.
 
-## What it does not cover
-
-Only implemented routes appear here. Articles, dashboards, reports, and settings
-are still planned in [API_CONTRACT.md](../API_CONTRACT.md), so their folders
-arrive with those rows rather than being mocked here with invented payloads.
+The collection uses synthetic local data and can be rerun. Repeated runs add
+another article and other demo records; clear the local demo database only if
+you intentionally want a fresh presentation state.
